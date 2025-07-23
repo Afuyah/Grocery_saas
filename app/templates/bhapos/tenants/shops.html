@@ -79,7 +79,12 @@
             <span>{{ shop.users.count() }} staff</span>
           </div>
           
-          <a href="{{ url_for('admin.admin_dashboard', shop_id=shop.id) }}" 
+          <a href="{{ url_for('admin.admin_dashboard', shop_id=shop.id) }}"
+            
+             hx-target="#main-content"
+             hx-swap="innerHTML transition:true"
+             hx-push-url="true"
+             hx-indicator="#htmx-loader"
              class="font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center">
             Open <span class="hidden sm:inline ml-1">Shop</span>
             <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

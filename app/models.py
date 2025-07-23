@@ -5,13 +5,16 @@ from enum import Enum
 from datetime import datetime, date
 from sqlalchemy import func, Index, ForeignKey
 from sqlalchemy.orm import validates, relationship
+from sqlalchemy_utils.types import ScalarListType
 from app import db
+from decimal import Decimal
+from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.ext.declarative import declared_attr
 import enum
 import logging
-from sqlalchemy import Numeric, Integer, Float, ForeignKey, String, DateTime, JSON, Boolean, Text 
+from sqlalchemy import Numeric, Integer, Float, ForeignKey, String, DateTime, JSON, Boolean, Text , text, Column
 from sqlalchemy import and_
 import sqlalchemy as sa
 from sqlalchemy.sql import expression
@@ -19,16 +22,6 @@ from sqlalchemy.sql import expression
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 
-
-# Define Python Enum for unit types
-class UnitType(enum.Enum):
-    piece = 'piece'
-    kg = 'kg'            
-    grams = 'grams'
-    punnet = 'punnet'
-    bunch = 'bunch'
-    packet = 'packet'
-    litr = 'litre'
 
 class ShopType(enum.Enum):
     pos = 'point of sale'
@@ -181,7 +174,7 @@ class Business(BaseModel):
     banner_url = db.Column(db.String(255), nullable=True)
     
     # Relationships
-    approved_by = db.relationship('User', foreign_keys=[approved_by_id])
+    
     shops = db.relationship('Shop', back_populates='business', cascade='all, delete-orphan')
     users = db.relationship(
         'User',
@@ -840,128 +833,233 @@ class CartItem(BaseModel, ShopScopedMixin):
 
 
 
+class UnitType(Enum):
+    """Enumeration of possible product units"""
+    PIECE = 'pcs'
+    KILOGRAM = 'kg'
+    GRAM = 'g'
+    LITER = 'l'
+    MILLILITER = 'ml'
+    PACKET = 'packet'
+    BOTTLE = 'bottle'
+    BOX = 'box'
+    METER = 'm'
+    CENTIMETER = 'cm'
+
 class Product(BaseModel, ShopScopedMixin):
+    """Product model representing items in inventory"""
     __tablename__ = 'products'
 
-    name = db.Column(String(200), nullable=False, index=True)
-    description = db.Column(Text)
-    barcode = db.Column(String(50), unique=True)
-    sku = db.Column(String(50), unique=True)
-    cost_price = db.Column(Numeric(10, 2), nullable=False, default=0.00)
-    selling_price = db.Column(Numeric(10, 2), nullable=False, default=0.00)
-    stock = db.Column(Integer, nullable=False, default=0)
-    low_stock_threshold = db.Column(Integer, default=10)
-    image_url = db.Column(String(255))
-    unit = db.Column(SQLAlchemyEnum(UnitType), nullable=True)
-    
-    # Relationships
-    category_id = db.Column(Integer, db.ForeignKey('categories.id'), nullable=False, index=True)
-    supplier_id = db.Column(Integer, db.ForeignKey('suppliers.id'), index=True)
-    
-    # Combination pricing
-    combination_size = db.Column(Integer)
-    combination_price = db.Column(Numeric(10, 2))
-    combination_unit_price = db.Column(Numeric(10, 2))
-    
-    # Status flags
-    is_active = db.Column(Boolean, default=True)
-    is_featured = db.Column(Boolean, default=False)
-    
-    # Relationships
-    category = db.relationship('Category', back_populates='products')
-    supplier = db.relationship('Supplier', back_populates='products')
-    sale_items = db.relationship('CartItem', back_populates='product', lazy='dynamic')
+    # Basic Information
+    name = Column(String(200), nullable=False, index=True)
+    description = Column(Text)
+    barcode = Column(String(50), unique=True, index=True)
+    sku = Column(String(50), unique=True, index=True, nullable=True)
 
+    
+    # Pricing Information
+    cost_price = Column(Numeric(10, 2), nullable=False, default=0.00, server_default=text("0.00"))
+    selling_price = Column(Numeric(10, 2), nullable=False, default=0.00, server_default=text("0.00"))
+    stock = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    low_stock_threshold = Column(Integer, default=10, server_default=text("10"))
+
+    # Media
+    image_url = Column(String(255))
+    secondary_images = Column(ScalarListType(separator="|"))  # Stores multiple image URLs
+
+    # Measurement
+    unit = Column(SQLAlchemyEnum(UnitType), nullable=True)
+    minimum_unit = Column(Numeric(3, 2), nullable=False, default=1.0, server_default=text("1.0"))
+
+    # Relationships
+    category_id = Column(Integer, ForeignKey('categories.id'), nullable=False, index=True)
+    supplier_id = Column(Integer, ForeignKey('suppliers.id'), index=True)
+    category = relationship('Category', back_populates='products')
+    supplier = relationship('Supplier', back_populates='products')
+    sale_items = relationship('CartItem', back_populates='product', lazy='dynamic')
+    
+
+    # Combination Pricing
+    combination_size = Column(Integer)  # e.g. 4 units
+    combination_price = Column(Numeric(10, 2))
+    combination_unit_price = Column(Numeric(10, 2))  # Optional override for unit pricing in combo
+
+    # Status Flags
+    is_active = Column(Boolean, default=True, server_default=text("true"))
+    is_featured = Column(Boolean, default=False, server_default=text("false"))
+    is_discountable = Column(Boolean, default=True, server_default=text("true"))
+
+    # Indexes
     __table_args__ = (
-        db.Index('ix_product_shop_category', 'shop_id', 'category_id'),
-        db.Index('ix_product_name_shop', 'name', 'shop_id'),
-        db.Index('ix_product_barcode', 'barcode'),
-        db.Index('ix_product_sku', 'sku'),
-        db.Index('ix_product_shop_supplier', 'shop_id', 'supplier_id'),
-        db.Index('ix_product_shop_active', 'shop_id', 'is_active'),
-        db.Index('ix_product_shop_stock', 'shop_id', 'stock'),
-        db.Index('ix_product_shop_combo', 'shop_id', 'combination_size'),
+        Index('ix_product_shop_category', 'shop_id', 'category_id'),
+        Index('ix_product_name_shop', 'name', 'shop_id'),
+        Index('ix_product_barcode_shop', 'barcode', 'shop_id'),
+        Index('ix_product_sku_shop', 'sku', 'shop_id'),
+        Index('ix_product_shop_supplier', 'shop_id', 'supplier_id'),
+        Index('ix_product_shop_active', 'shop_id', 'is_active'),
+        Index('ix_product_shop_stock', 'shop_id', 'stock'),
+        Index('ix_product_shop_combo', 'shop_id', 'combination_size'),
+        Index('ix_product_search', 'shop_id', 'name', 'barcode', 'sku'),
     )
 
+    # === Validations ===
+    @validates('name')
+    def validate_name(self, key, name):
+        if not name or len(name.strip()) < 2:
+            raise ValueError("Product name must be at least 2 characters")
+        return name.strip()
 
-    @validates('cost_price', 'selling_price', 'stock')
-    def validate_prices_stock(self, key, value):
-        if key in ['cost_price', 'selling_price'] and value < 0:
+ 
+
+        
+
+
+    @validates('cost_price', 'selling_price')
+    def validate_prices(self, key, price):
+        if price < 0:
             raise ValueError(f"{key.replace('_', ' ').title()} cannot be negative")
-        if key == 'stock' and value < 0:
-            raise ValueError("Stock cannot be negative")
+        if key == 'selling_price' and hasattr(self, 'cost_price') and price < self.cost_price:
+            raise ValueError("Selling price cannot be less than cost price")
+        return round(Decimal(price), 2)
+
+    @validates('stock', 'low_stock_threshold')
+    def validate_stock_values(self, key, value):
+        if value < 0:
+            raise ValueError(f"{key.replace('_', ' ').title()} cannot be negative")
         return value
 
+    @validates('minimum_unit')
+    def validate_minimum_unit(self, key, value):
+        if value <= 0:
+            raise ValueError("Minimum unit must be a positive number")
+        if self.unit and self.unit in [UnitType.KILOGRAM, UnitType.LITER] and value > 10:
+            raise ValueError("Minimum unit too large for this unit type")
+        return round(Decimal(value), 2)
+
+    @validates('barcode', 'sku')
+    def validate_codes(self, key, value):
+        if value and len(value) > 50:
+            raise ValueError(f"{key.upper()} must be 50 characters or less")
+        return value
+
+    # === Hybrid Properties ===
     @hybrid_property
     def profit(self):
+        """Calculate absolute profit per unit"""
         return self.selling_price - self.cost_price
 
     @hybrid_property
     def profit_margin(self):
+        """Calculate profit margin percentage"""
         return (self.profit / self.selling_price * 100) if self.selling_price > 0 else 0.0
 
     @hybrid_property
     def is_low_stock(self):
-        if self.stock is None or self.low_stock_threshold is None:
-            return False
-        return self.stock < self.low_stock_threshold
+        """Check if stock is below threshold"""
+        return (self.stock or 0) < (self.low_stock_threshold or 0)
 
     @hybrid_property
     def is_combo(self):
+        """Check if product has combination pricing"""
         return self.combination_size is not None and self.combination_size > 1
-        
+
     @hybrid_property
     def display_price(self):
-        """Returns the appropriate price based on combination settings"""
-        if self.combination_size and self.combination_size > 1:
+        """Get appropriate price based on combination settings"""
+        if self.is_combo:
             return {
                 'single': float(self.selling_price),
-                'combination': float(self.combination_price),
+                'combination': float(self.combination_price or 0.0),
                 'size': self.combination_size,
-                'unit_price': float(self.combination_unit_price)
+                'unit_price': float(self.combination_unit_price or self.selling_price)
             }
         return float(self.selling_price)
 
-    def serialize(self, for_pos=False):
-        """Enhanced serialization with POS-specific options"""
+    @hybrid_property
+    def total_value(self):
+        """Calculate total inventory value"""
+        return float(self.cost_price * Decimal(self.stock))
+
+    # === Business Methods ===
+    def update_stock(self, quantity, note=None, user_id=None):
+        """Safely update stock with inventory logging"""
+        new_stock = (self.stock or 0) + quantity
+        if new_stock < 0:
+            raise ValueError("Insufficient stock available")
+        
+        self.stock = new_stock
+        
+        # Create inventory log
+        if user_id:
+          
+            log = StockLog(
+                product_id=self.id,
+                user_id=user_id,
+                quantity=quantity,
+                new_quantity=new_stock,
+                note=note
+            )
+            db.session.add(log)
+        
+        return self
+
+    def apply_discount(self, percentage):
+        """Apply percentage discount to selling price"""
+        if not 0 <= percentage <= 100:
+            raise ValueError("Discount percentage must be between 0 and 100")
+        self.selling_price = round(self.selling_price * (1 - percentage/100), 2)
+        return self
+
+    # === Serialization ===
+    def serialize(self, for_pos=False, include_private=False):
+        """Serialize product data for API responses"""
         data = {
             'id': self.id,
             'name': self.name,
+            'description': self.description,
             'price': float(self.selling_price),
-            'cost_price': float(self.cost_price),
+            'cost_price': float(self.cost_price) if include_private else None,
             'stock': self.stock,
+            'low_stock_threshold': self.low_stock_threshold,
             'image_url': self.image_url,
             'barcode': self.barcode,
+            'sku': self.sku,
             'category_id': self.category_id,
+            'supplier_id': self.supplier_id,
+            
             'is_active': self.is_active,
-            'is_low_stock': self.is_low_stock,
-            'profit': float(self.profit),
+            'is_featured': self.is_featured,
+            'is_discountable': self.is_discountable,
+            'unit': self.unit.value if self.unit else None,
+            'minimum_unit': float(self.minimum_unit),
             'profit_margin': float(self.profit_margin),
-            'is_combo': self.is_combo  
+            'is_combo': self.is_combo,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
         if for_pos:
             data.update({
                 'display_price': self.display_price,
                 'combination_size': self.combination_size,
-                'combination_price': float(self.combination_price) if self.combination_price else None,
-                'combination_unit_price': float(self.combination_unit_price) if self.combination_unit_price else None,
-                'category_name': self.category.name if self.category else None
+                'combination_price': float(self.combination_price or 0.0),
+                'combination_unit_price': float(self.combination_unit_price or 0.0),
+                'category_name': self.category.name if self.category else None,
+                'supplier_name': self.supplier.name if self.supplier else None
+            })
+
+        if include_private:
+            data.update({
+                'profit': float(self.profit),
+                'total_value': self.total_value,
+                'is_low_stock': self.is_low_stock
             })
 
         return data
 
-
-    def update_stock(self, quantity):
-        """Safe stock update with validation"""
-        new_stock = self.stock + quantity
-        if new_stock < 0:
-            raise ValueError("Insufficient stock available")
-        self.stock = new_stock
-        return self
-
     def __repr__(self):
-        return f'<Product {self.id}: {self.name}>'
+        return f'<Product {self.id}: {self.name} (Shop: {self.shop_id})>'
+
 
 
 

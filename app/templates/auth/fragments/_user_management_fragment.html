@@ -1,6 +1,6 @@
 <div id="user-management-fragment" class="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden m-5">
   <!-- Header and Add User Button -->
-{% set shop = g.current_shop %}
+
 
   <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50 dark:bg-gray-800/50">
   <div>
@@ -9,8 +9,8 @@
     </h2>
      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Add and Manage users</p>
   </div>
-    <a href="{{ url_for('auth.add_user', shop_id=shop.id) }}"
-       hx-get="{{ url_for('auth.add_user', shop_id=shop.id) }}"
+    <a href="{{ url_for('auth.add_user', shop_id=current_shop.id) }}"
+       hx-get="{{ url_for('auth.add_user', shop_id=current_shop.id) }}"
        hx-target="#main-content"
        hx-swap="innerHTML"
        class="inline-flex items-center px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800">

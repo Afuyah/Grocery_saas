@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, g, make_response
 from flask_login import login_required, current_user
-from app.models import  Product, Category, Supplier, Expense ,AdjustmentType, StockLog, User, PriceChange, Role 
+from app.models import  Product, Category, Supplier, Expense ,AdjustmentType, StockLog, User, PriceChange, Role, UnitType
 from app import socketio
 from app import db, csrf, role_required, shop_access_required, business_access_required
 from decimal import Decimal, InvalidOperation
@@ -309,8 +309,7 @@ def products_fragment(shop_id):
 
     template = (
         'admin/fragments/_product_inventory.html'
-        if current_user.is_admin()
-        else 'admin/fragments/_cashier_products_view.html'
+       
     )
 
     return render_htmx(
@@ -332,120 +331,199 @@ def new_product(shop_id):
     shop = g.current_shop
     categories = Category.query.filter_by(shop_id=shop.id).all()
     suppliers = Supplier.query.all()
+    unit_choices = [u.name for u in UnitType]
+    minimum_unit_choices = [0.25, 0.5, 1, 2, 3]
+    sku_input = request.form.get('sku', '').strip()
+    sku = sku_input if sku_input else None
 
-    product_data = {
-        'name': request.form['name'].strip(),
-        'cost_price': request.form['cost_price'].strip(),
-        'selling_price': request.form['selling_price'].strip(),
-        'stock': request.form['stock'].strip(),
-        'category_id': request.form['category'],
-        'supplier_id': request.form.get('supplier'),
-        'combination_size': request.form.get('combination_size', '').strip(),
-        'combination_price': request.form.get('combination_price', '').strip(),
-        'shop_id': shop.id
-    }
-
-    error = validate_product_data(product_data)
-    if error:
-        return render_htmx(
-            'admin/fragments/_new_product.html', 
-            error=error, 
-            categories=categories, 
-            suppliers=suppliers, 
-            shop_id=shop.id
-        )
-
+    
     try:
+        # Process form data with proper defaults
+        product_data = {
+            'name': request.form['name'].strip(),
+            'description': request.form.get('description', '').strip(),
+            'cost_price': request.form['cost_price'].strip(),
+            'selling_price': request.form['selling_price'].strip(),
+            'stock': request.form['stock'].strip(),
+            'category_id': request.form['category_id'],
+            'supplier_id': request.form.get('supplier_id', '').strip(),
+            'combination_size': request.form.get('combination_size', '').strip(),
+            'combination_price': request.form.get('combination_price', '').strip(),
+            'unit': request.form.get('unit', '').strip().upper(),
+            'minimum_unit': request.form.get('minimum_unit', '1').strip(),
+            'low_stock_threshold': request.form.get('low_stock_threshold', '10').strip(),
+            'barcode': request.form.get('barcode', '').strip() or None,
+            'sku': request.form.get('sku', '').strip() or None,
+            'image_url': request.form.get('image_url', '').strip(),
+            'is_active': request.form.get('is_active', 'true').lower() == 'true',
+            'is_featured': request.form.get('is_featured', 'false').lower() == 'true',
+            'shop_id': shop.id
+        }
+
+        # Validate data
+        error = validate_product_data(product_data)
+        if error:
+            return render_htmx(
+                'admin/fragments/_new_product.html',
+                error=error,
+                categories=categories,
+                suppliers=suppliers,
+                unit_choices=unit_choices,
+                minimum_unit_choices=minimum_unit_choices,
+                shop_id=shop.id
+            )
+
+     
+        # Create and save product
         new_product = create_product(product_data)
         db.session.add(new_product)
+        db.session.flush()
+
+        # Ensure unique SKU
+        if not new_product.sku:
+            new_product.sku = f"SKU-{new_product.id}"
+
         db.session.commit()
-        
-        # Return success response with refresh instruction
+
+
+        # Success response
         response = make_response(render_htmx(
             'admin/fragments/_new_product.html',
             success="Product added successfully!",
             categories=categories,
             suppliers=suppliers,
+            unit_choices=unit_choices,
+            minimum_unit_choices=minimum_unit_choices,
             shop_id=shop.id,
-            form_cleared=True  # Add this flag to clear the form
+            form_cleared=True
         ))
-        
-        # Trigger client-side refresh of product list
         response.headers['HX-Trigger'] = 'productAdded'
         return response
 
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Error creating product: {str(e)}")
+        current_app.logger.error(f"Error creating product: {str(e)}", exc_info=True)
         return render_htmx(
             'admin/fragments/_new_product.html',
-            error="An error occurred while creating the product",
+            error="An unexpected error occurred while creating the product",
             categories=categories,
             suppliers=suppliers,
+            unit_choices=unit_choices,
+            minimum_unit_choices=minimum_unit_choices,
             shop_id=shop.id
         )
 
 
-
 def validate_product_data(data):
-    # Check if the product already exists in the same shop
+    # Check for existing product with same name in shop
     existing = Product.query.filter_by(name=data['name'], shop_id=data['shop_id']).first()
     if existing:
         return "A product with this name already exists in this shop."
 
-    # Check required fields
-    required_fields = [data['name'], data['cost_price'], data['selling_price'], data['stock'], data['category_id']]
-    for field, value in zip(['Name', 'Cost Price', 'Selling Price', 'Stock', 'Category'], required_fields):
-        if not value:
-            return f"{field} is required."
+    # Validate required fields
+    required_fields = {
+        'name': 'Name',
+        'cost_price': 'Cost Price',
+        'selling_price': 'Selling Price', 
+        'stock': 'Stock',
+        'category_id': 'Category'
+    }
+    
+    for field, display_name in required_fields.items():
+        if not data.get(field):
+            return f"{display_name} is required."
 
     # Validate numeric fields
-    try:
-        data['cost_price'] = Decimal(data['cost_price'])
-        data['selling_price'] = Decimal(data['selling_price'])
-        data['stock'] = int(data['stock'])
+    numeric_fields = {
+        'cost_price': ('Cost Price', True),
+        'selling_price': ('Selling Price', True),
+        'stock': ('Stock', True),
+        'low_stock_threshold': ('Low Stock Threshold', False),
+        'combination_size': ('Bundle Size', False),
+        'combination_price': ('Bundle Price', False)
+    }
 
-        if data['cost_price'] <= 0 or data['selling_price'] <= 0 or data['stock'] < 0:
-            return "Cost price, selling price, and stock must be positive numbers."
-
-    except (ValueError, InvalidOperation):
-        return "Cost price, selling price, and stock must be valid numbers."
-
-    # Validate combination fields (optional)
-    if data['combination_size'] and data['combination_price']:
+    for field, (display_name, required) in numeric_fields.items():
+        value = data.get(field)
+        if not value and not required:
+            continue
+            
         try:
-            data['combination_size'] = int(data['combination_size'])
-            data['combination_price'] = Decimal(data['combination_price'])
-
-            if data['combination_size'] <= 0 or data['combination_price'] <= 0:
-                return "Combination size and price must be positive numbers."
-
+            decimal_value = Decimal(value) if field in ['cost_price', 'selling_price', 'combination_price'] else int(value)
+            if decimal_value < 0:
+                return f"{display_name} must be a positive number"
+            data[field] = decimal_value
         except (ValueError, InvalidOperation):
-            return "Combination size and price must be valid positive numbers."
+            return f"{display_name} must be a valid number"
 
-    return None  # No errors
+    # Validate combination pricing
+    if (data.get('combination_size') and not data.get('combination_price')) or \
+       (not data.get('combination_size') and data.get('combination_price')):
+        return "Both bundle size and price must be provided if either is set"
 
+    # Validate minimum unit
+    try:
+        data['minimum_unit'] = float(data['minimum_unit'])
+        if data['minimum_unit'] not in [0.25, 0.5, 1, 2, 3]:
+            return "Minimum unit must be one of: 0.25, 0.5, 1, 2, 3"
+    except ValueError:
+        return "Minimum unit must be a valid number"
+
+    # Validate unit type
+    try:
+        if data['unit']:
+            data['unit'] = UnitType[data['unit']]
+        else:
+            return "Unit type is required"
+    except KeyError:
+        return f"Invalid unit. Must be one of: {', '.join([u.name for u in UnitType])}"
+
+    # Validate image URL format if provided
+    if data.get('image_url') and not data['image_url'].startswith(('http://', 'https://')):
+        return "Image URL must start with http:// or https://"
+
+    return None
 
 
 def create_product(data):
+    """Create a new Product instance from validated data"""
     combination_unit_price = None
-    if data['combination_size'] and data['combination_price']:
+    if data.get('combination_size') and data.get('combination_price'):
         combination_unit_price = float(data['combination_price']) / int(data['combination_size'])
 
-    return Product(
+    # Step 1: Create product instance without SKU (if blank)
+    product = Product(
         name=data['name'],
+        description=data.get('description'),
         cost_price=float(data['cost_price']),
         selling_price=float(data['selling_price']),
-        stock=float(data['stock']),
+        stock=int(data['stock']),
+        low_stock_threshold=int(data.get('low_stock_threshold', 10)),
         category_id=int(data['category_id']),
-        supplier_id=int(data['supplier_id']) if data['supplier_id'] else None,
-        combination_size=int(data['combination_size']) if data['combination_size'] else None,
-        combination_price=float(data['combination_price']) if data['combination_price'] else None,
+        supplier_id=int(data['supplier_id']) if data.get('supplier_id') else None,
+        combination_size=int(data['combination_size']) if data.get('combination_size') else None,
+        combination_price=float(data['combination_price']) if data.get('combination_price') else None,
         combination_unit_price=combination_unit_price,
+        unit=data['unit'],
+        minimum_unit=float(data['minimum_unit']),
+        barcode=str(data.get("barcode") or "").strip() or None,
+        sku=str(data.get("sku") or "").strip() or None,
+        image_url=data.get('image_url'),
+        is_active=data.get('is_active', True),
+        is_featured=data.get('is_featured', False),
         shop_id=data['shop_id']
     )
 
+    # Step 2: Add and flush to assign an ID
+    db.session.add(product)
+    db.session.flush()  # Now product.id is available
 
+    # Step 3: If SKU was not provided, use the product ID
+    if not product.sku:
+        product.sku = str(product.id)
+
+    db.session.commit()
+    return product
 
 
 @inventory_bp.route('/shops/<int:shop_id>/products/new-fragment', methods=['GET'])
@@ -453,9 +531,45 @@ def create_product(data):
 @shop_access_required
 @role_required(Role.ADMIN, Role.TENANT)
 def new_product_form_fragment(shop_id):
-    categories = Category.query.filter_by(shop_id=shop_id).all()
-    suppliers = Supplier.query.all()
-    return render_htmx('admin/fragments/_new_product.html', categories=categories, suppliers=suppliers, shop_id=shop_id)
+    """Render the new product form fragment with all required data"""
+    try:
+        # Get current shop for additional validation
+        shop = g.current_shop
+        
+        # Fetch categories specific to this shop
+        categories = Category.query.filter_by(shop_id=shop.id).order_by(Category.name).all()
+        
+        # Fetch all suppliers (or filter by shop if needed)
+        suppliers = Supplier.query.order_by(Supplier.name).all()
+        
+        # Get available unit types from enum
+        unit_choices = [u.name for u in UnitType]
+        
+        # Standard minimum unit options
+        minimum_unit_choices = [0.25, 0.5, 1.0, 2.0, 3.0]
+
+        return render_htmx(
+            'admin/fragments/_new_product.html',
+            categories=categories,
+            suppliers=suppliers,
+            shop_id=shop.id,  # Use the verified shop_id from g.current_shop
+            unit_choices=unit_choices,
+            minimum_unit_choices=minimum_unit_choices,
+            default_min_unit=1.0,  # Provide default for the form
+            default_low_stock=10   # Default low stock threshold
+        )
+
+    except Exception as e:
+        current_app.logger.error(f"Error loading product form: {str(e)}", exc_info=True)
+        return render_htmx(
+            'admin/fragments/_new_product.html',
+            error="Failed to load product form. Please try again.",
+            categories=[],
+            suppliers=[],
+            shop_id=shop_id,
+            unit_choices=[],
+            minimum_unit_choices=[]
+        )
 
 
 @csrf.exempt

@@ -1,4 +1,6 @@
-from marshmallow import Schema, fields, validate, ValidationError
+
+from marshmallow import Schema, fields, validate, validates_schema, ValidationError
+from datetime import datetime
 from enum import Enum
 
 class AdjustmentType(Enum):
@@ -7,18 +9,26 @@ class AdjustmentType(Enum):
     DAMAGED = 'damaged'
     RETURN = 'return'
 
+
+
+
+def validate_quantity(value):
+    if value <= 0:
+        raise ValidationError("Quantity must be greater than zero.")
+    if value > 999:
+        raise ValidationError("Quantity exceeds maximum allowed (999).")
+
 class CartItemSchema(Schema):
     product_id = fields.Integer(
         required=True,
         validate=validate.Range(min=1),
-        metadata={"description": "ID of the product being added to cart"}
+        metadata={"description": "ID of the product being purchased"}
     )
-    quantity = fields.Integer(
-        required=False,  # ← change here
-        validate=validate.Range(min=1, max=999),
-        metadata={"description": "Quantity of the product"}
+    quantity = fields.Float(
+        required=True,
+        validate=validate_quantity,
+        metadata={"description": "Quantity being purchased (can be fractional)"}
     )
-
 
 class CheckoutSchema(Schema):
     payment_method = fields.String(
@@ -39,7 +49,6 @@ class CheckoutSchema(Schema):
         allow_none=True,
         metadata={"description": "Optional discount code to apply"}
     )
-    
     cart_items = fields.List(
         fields.Nested(CartItemSchema),
         required=True,
@@ -121,34 +130,6 @@ class RefundSchema(Schema):
     )
 
 
-from marshmallow import Schema, fields, validate, validates_schema, ValidationError
-from datetime import datetime
-
-class RegisterSessionSchema(Schema):
-    id = fields.Int(dump_only=True)
-    shop_id = fields.Int(required=True)
-    opening_cash = fields.Float(
-        required=True,
-        validate=validate.Range(min=0, error="Opening cash must be positive")
-    )
-    opening_notes = fields.Str(allow_none=True)
-    closing_cash = fields.Float(
-        allow_none=True,
-        validate=validate.Range(min=0, error="Closing cash must be positive")
-    )
-    closing_notes = fields.Str(allow_none=True)
-    opened_at = fields.DateTime(dump_only=True)
-    closed_at = fields.DateTime(dump_only=True)
-    expected_cash = fields.Float(dump_only=True)
-    discrepancy = fields.Float(dump_only=True)
-    status = fields.Str(dump_only=True)  # 'open', 'closed'
-
-    @validates_schema
-    def validate_closure(self, data, **kwargs):
-        if 'closing_cash' in data and data['closing_cash'] is not None:
-            if 'opening_cash' not in data:
-                raise ValidationError("Opening cash required for closure")
-
 class SaleItemSchema(Schema):
     product_id = fields.Int(required=True)
     quantity = fields.Int(
@@ -162,7 +143,7 @@ class SaleItemSchema(Schema):
 
 class SaleSchema(Schema):
     id = fields.Int(dump_only=True)
-    register_session_id = fields.Int(required=True)
+    
     payment_method = fields.Str(
         required=True,
         validate=validate.OneOf(['cash', 'mpesa', 'card', 'other'])

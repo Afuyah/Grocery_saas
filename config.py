@@ -16,10 +16,10 @@ class Config:
     CACHE_DEFAULT_TIMEOUT = 300
 
     # Session Security Configuration
-    SESSION_COOKIE_SECURE = True  # Requires HTTPS
-    SESSION_COOKIE_HTTPONLY = True  # Prevent client-side JS access
-    SESSION_COOKIE_SAMESITE = 'Lax'  # Or 'None' if you need cross-site
-    PERMANENT_SESSION_LIFETIME = 3600  # 1 hour
+    SESSION_COOKIE_SECURE = True  
+    SESSION_COOKIE_HTTPONLY = True  
+    SESSION_COOKIE_SAMESITE = 'Lax'  
+    PERMANENT_SESSION_LIFETIME = 3600 
     
     # Additional Security Headers (Flask-Talisman compatible)
     SECURITY_HEADERS = {

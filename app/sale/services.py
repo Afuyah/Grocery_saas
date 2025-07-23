@@ -1,11 +1,11 @@
 from flask_login import current_user
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_UP
 from typing import List, Dict, Optional
 from flask import request, session
 from .. import db, socketio
-from .repositories import ProductRepository, CategoryRepository, SaleRepository, RegisterSessionRepository
-from ..models import Shop, Sale, CartItem, Category, Product, RegisterSession, Tax
+from .repositories import ProductRepository, CategoryRepository, SaleRepository
+from ..models import Shop, Sale, CartItem, Category, Product, Tax
 from sqlalchemy.sql import bindparam
 from app.utils.pricing import PricingUtil
 import threading
@@ -13,7 +13,6 @@ from sqlalchemy.orm import joinedload, with_loader_criteria
 from app.utils.time import get_kenya_today_range
 from sqlalchemy import and_, func, case
 import logging
-
 import logging
 import traceback
 from functools import lru_cache
@@ -82,85 +81,105 @@ class SalesService:
         payment_method: str,
         customer_data: Optional[Dict] = None
     ) -> Dict:
-        """
-        Ultra-optimized sale transaction processing with minimal latency and safe commit flow.
-        """
-
         if not cart_items:
             raise ValueError("Cannot process empty sale")
         if not payment_method:
-            raise ValueError("Payment method required")
+            raise ValueError("Payment method is required")
 
-        cart_items = [{'product_id': int(item['product_id']), 'quantity': int(item['quantity'])}
-                      for item in cart_items]
+        # Normalize cart data (force Decimal quantity)
+        cart_items = [
+            {
+                'product_id': int(item['product_id']),
+                'quantity': Decimal(str(item['quantity']))
+            }
+            for item in cart_items
+        ]
 
         try:
+            # Preload all products in bulk
             product_ids = [item['product_id'] for item in cart_items]
-            products, register_session = ProductRepository.get_bulk_for_sale_and_session(product_ids, shop_id)
-            if not register_session:
-                raise ValueError("No open register session")
-
+            products = ProductRepository.get_bulk_for_sale(product_ids, shop_id)
             product_map = {p.id: p for p in products}
 
+            tax_rate = Decimal(str(Tax.get_tax_rate(shop_id)))
             subtotal = Decimal('0')
             total_cost = Decimal('0')
             cart_item_data = []
             stock_updates = []
 
-            tax_rate = Decimal(str(Tax.get_tax_rate(shop_id)))
+            def round_up_to_nearest_five(amount: Decimal) -> Decimal:
+                return (amount / Decimal('5')).to_integral_value(rounding=ROUND_UP) * Decimal('5')
 
             for item in cart_items:
                 product = product_map.get(item['product_id'])
                 if not product:
                     raise ValueError(f"Product {item['product_id']} not found")
+
                 quantity = item['quantity']
                 if product.stock < quantity:
-                    raise ValueError(f"Insufficient stock for {product.name}")
+                    raise ValueError(f"Insufficient stock for '{product.name}'")
 
-                item_subtotal = (
-                    (quantity // product.combination_size * product.combination_price +
-                     min(quantity % product.combination_size * product.selling_price, product.combination_price))
-                    if product.is_combo and product.combination_size > 1
-                    else quantity * product.selling_price
-                )
-                item_cost = quantity * product.cost_price
+                # Calculate combo-aware subtotal
+                if product.is_combo and product.combination_size and product.combination_size > 1:
+                    combo_size = Decimal(str(product.combination_size))
+                    combo_price = Decimal(str(product.combination_price))
+                    unit_price = Decimal(str(product.selling_price))
 
-                subtotal += Decimal(str(item_subtotal))
-                total_cost += Decimal(str(item_cost))
+                    combos = quantity // combo_size
+                    remainder = quantity % combo_size
+                    combo_total = combos * combo_price
+                    remainder_total = min(remainder * unit_price, combo_price)
+                    item_subtotal = combo_total + remainder_total
+                else:
+                    unit_price = Decimal(str(product.selling_price))
+                    item_subtotal = quantity * unit_price
+
+                item_subtotal = round_up_to_nearest_five(item_subtotal)
+
+                cost_price = Decimal(str(product.cost_price))
+                item_cost = quantity * cost_price
+
+                subtotal += item_subtotal
+                total_cost += item_cost
 
                 cart_item_data.append({
                     'shop_id': shop_id,
                     'product_id': product.id,
-                    'quantity': quantity,
-                    'unit_price': float(product.selling_price),
+                    'quantity': float(quantity),
+                    'unit_price': float(unit_price),
                     'total_price': float(item_subtotal)
                 })
-                stock_updates.append({'p_id': product.id, 'new_stock': product.stock - quantity})
 
-            tax_amount = subtotal * tax_rate
+                stock_updates.append({
+                    'p_id': product.id,
+                    'new_stock': float(Decimal(str(product.stock)) - quantity)
+                })
+
+            tax_amount = (subtotal * tax_rate).quantize(Decimal('0.01'))
             total = subtotal + tax_amount
+            profit = subtotal - total_cost
 
+            # Save sale record
             sale = Sale(
                 shop_id=shop_id,
                 user_id=user_id,
-                register_session_id=register_session.id,
                 subtotal=float(subtotal),
                 tax=float(tax_amount),
                 total=float(total),
                 payment_method=payment_method,
-                customer_name=str(customer_data.get('name', '')).strip()[:100] if customer_data else None,
-                customer_phone=str(customer_data.get('phone', '')).strip()[:20] if customer_data else None,
-                profit=float(subtotal - total_cost)
+                profit=float(profit)
             )
             db.session.add(sale)
             db.session.flush()  # Get sale.id
 
+            # Bulk insert cart items
             if cart_item_data:
                 db.session.execute(
                     CartItem.__table__.insert(),
                     [dict(item, sale_id=sale.id) for item in cart_item_data]
                 )
 
+            # Bulk update product stock
             if stock_updates:
                 db.session.execute(
                     Product.__table__.update()
@@ -171,7 +190,7 @@ class SalesService:
 
             db.session.commit()
 
-            # Launch background thread
+            # Background receipt and notification tasks
             threading.Thread(
                 target=run_checkout_tasks,
                 args=(sale.id, shop_id, user_id, float(total), len(cart_items)),
@@ -183,7 +202,7 @@ class SalesService:
                 'sale_id': sale.id,
                 'amount_paid': float(total),
                 'change_due': 0.0,
-                'receipt': None,  
+                'receipt': None,
                 'receipt_pending': True
             }
 
@@ -195,7 +214,6 @@ class SalesService:
                 'trace': traceback.format_exc()
             })
             raise ValueError(f"Checkout processing failed: {str(e)}")
-
 
     @staticmethod
     def get_recent_transactions(shop_id: int):
@@ -210,50 +228,7 @@ class SalesService:
             query = query.filter(Sale.date <= date_to)
         return query.order_by(Sale.date.desc()).paginate(page=page, per_page=per_page)
 
-    @staticmethod
-    def calculate_expected_cash(shop_id, session_id):
-        from app.models import Sale
-        from sqlalchemy import func
-
-        result = db.session.query(
-            func.coalesce(func.sum(Sale.total), 0)
-        ).filter(
-            Sale.shop_id == shop_id,
-            Sale.register_session_id == session_id,
-            Sale.is_deleted == False
-        ).scalar()
-
-        return round(float(result or 0), 2)
-
-
-    @staticmethod
-    def get_register_summary(shop_id, session_id):
-        sales = db.session.query(
-            func.coalesce(func.sum(Sale.total), 0).label('total'),
-            func.count(Sale.id).label('count'),
-            func.coalesce(func.sum(case(
-                [(Sale.payment_method == 'cash', Sale.total)],
-                else_=0
-            )), 0).label('cash'),
-            func.coalesce(func.sum(case(
-                [(Sale.payment_method == 'mpesa', Sale.total)],
-                else_=0
-            )), 0).label('mpesa')
-        ).filter(
-            Sale.shop_id == shop_id,
-            Sale.register_session_id == session_id,
-            Sale.is_deleted == False
-        ).first()
-
-        return {
-            'total': float(sales.total or 0),
-            'count': sales.count,
-            'cash': float(sales.cash or 0),
-            'mpesa': float(sales.mpesa or 0)
-        }
-
-
-     
+    
 
 class ReceiptService:
     @staticmethod
@@ -298,15 +273,12 @@ class ReceiptService:
 class ProductService:
     @staticmethod
     def search(shop_id: int, query: str, category_id: Optional[int] = None, limit: Optional[int] = None) -> List[Dict]:
-        """
-        Search products with optional limit, error handling, and result formatting.
-        """
         try:
             results = ProductRepository.search_available(
                 shop_id=shop_id,
                 query=query,
                 category_id=category_id,
-                limit=limit  # 👈 pass to repository layer
+                limit=limit
             )
 
             return [{
@@ -318,6 +290,8 @@ class ProductService:
                 'category_id': p.category.id,
                 'stock': p.stock,
                 'barcode': p.barcode or '',
+                'unit': p.unit,
+                'minimum_unit': p.minimum_unit or 1,
                 'is_combo': bool(p.combination_size and p.combination_size > 1),
                 'combination_price': float(p.combination_price) if p.combination_price and p.combination_size and p.combination_size > 1 else None,
                 'combination_size': p.combination_size if p.combination_size and p.combination_size > 1 else None,
@@ -327,11 +301,9 @@ class ProductService:
             logger.error(f"Product search failed for shop {shop_id}: {str(e)}")
             return []
 
+
     @staticmethod
     def get_available_for_sale(shop_id: int) -> List[Dict]:
-        """
-        Get all available products for a shop with inventory status
-        """
         try:
             products = ProductRepository.get_available_for_sale(shop_id)
             return [{
@@ -343,10 +315,11 @@ class ProductService:
                 'category_id': p.category.id,
                 'stock': p.stock,
                 'is_low_stock': p.stock < 10,
+                'unit': p.unit,
+                'minimum_unit': p.minimum_unit or 1,
                 'is_combo': bool(p.combination_size and p.combination_size > 1),
                 'combination_price': float(p.combination_price) if p.combination_price and p.combination_size and p.combination_size > 1 else None,
                 'combination_size': p.combination_size if p.combination_size and p.combination_size > 1 else None,
-
             } for p in products]
 
         except Exception as e:
@@ -374,6 +347,8 @@ class CategoryService:
                         'price': float(p.selling_price),
                         'image_url': p.image_url or '/static/images/product-placeholder.png',
                         'stock': p.stock,
+                        'unit': p.unit.value if p.unit else None,
+                        'minimum_unit': float(p.minimum_unit) if p.minimum_unit else 1.0,
                         'barcode': p.barcode,
                         'category_id': p.category_id,
                         'is_combo': bool(p.combination_size and p.combination_size > 1),
@@ -440,209 +415,4 @@ class TaxService:
         return float(tax.rate if tax else 0.0)
 
 
-
-class SalesSummaryService:
-    @staticmethod
-    def get_summary(shop_id: int, session_id: Optional[int] = None) -> Dict:
-        """
-        Return sales summary and recent sales for a shop.
-        If session_id is provided, the summary will be scoped to that session.
-        Otherwise, it defaults to today's date summary.
-        """
-        try:
-            filters = [
-                Sale.shop_id == shop_id,
-                Sale.is_deleted == False
-            ]
-
-            # Determine filter context: by session OR today
-            if session_id:
-                filters.append(Sale.register_session_id == session_id)
-            else:
-                date_from, date_to = get_kenya_today_range()
-                filters.append(Sale.date >= date_from)
-                filters.append(Sale.date <= date_to)
-
-            # Summary stats
-            summary = (
-                db.session.query(
-                    func.count(Sale.id).label("sales_count"),
-                    func.sum(Sale.total).label("total_sales"),
-                    func.sum(Sale.tax).label("total_tax"),
-                    func.sum(Sale.profit).label("total_profit")
-                )
-                .filter(*filters)
-                .first()
-            )
-
-            # Payment breakdown
-            payment_data = (
-                db.session.query(
-                    Sale.payment_method,
-                    func.sum(Sale.total).label("amount")
-                )
-                .filter(*filters)
-                .group_by(Sale.payment_method)
-                .all()
-            )
-
-            payment_methods = {
-                method: float(amount or 0) for method, amount in payment_data
-            }
-
-            # Recent sales (limit to 5, same filter scope)
-            recent_sales = (
-                Sale.query
-                .filter(*filters)
-                .order_by(Sale.date.desc())
-                .limit(5)
-                .all()
-            )
-
-            return {
-                'success': True,
-                'data': {
-                    'summary': {
-                        'sales_count': summary.sales_count or 0,
-                        'total_sales': float(summary.total_sales or 0),
-                        'total_tax': float(summary.total_tax or 0),
-                        'total_profit': float(summary.total_profit or 0),
-                        'payment_methods': payment_methods
-                    },
-                    'recent_sales': [
-                        {
-                            'id': s.id,
-                            'total': float(s.total),
-                            'date': s.date.strftime('%Y-%m-%d %H:%M'),
-                            'payment_method': s.payment_method,
-                            'customer': s.customer_name or 'Walk-in',
-                            'cashier': s.user.username if s.user else 'N/A',
-                            'register_session_id': s.register_session_id
-                        } for s in recent_sales
-                    ]
-                }
-            }
-
-        except Exception as e:
-            return {
-                'success': False,
-                'message': f"Failed to generate summary: {str(e)}"
-            }
-
-
-class RegisterService:
-
-    @staticmethod
-    def open_register(shop_id: int, user_id: int, opening_cash: float) -> RegisterSession:
-        """
-        Open a new register session after ensuring no session is currently open.
-        """
-        if RegisterSessionRepository.get_open_session(shop_id):
-            raise ValueError("A register is already open for this shop.")
-        
-        return RegisterSessionRepository.create(
-            shop_id=shop_id,
-            user_id=user_id,
-            opening_cash=opening_cash
-        )
-
-    @staticmethod
-    def close_register(
-        shop_id: int,
-        user_id: int,
-        session_id: int,
-        closing_cash: float,
-        notes: Optional[str] = None
-    ) -> RegisterSession:
-        """
-        Close an open register session after validating session ownership and expected cash.
-        """
-        open_session = RegisterSessionRepository.get_open_session(shop_id)
-
-
-        if not open_session:
-            raise ValueError("No open register session found.")
-        
-        if open_session.id != session_id:
-            raise ValueError("Session mismatch. Cannot close a session not currently open.")
-
-        expected_cash = RegisterService._calculate_expected_cash(shop_id, session_id)
-
-        return RegisterSessionRepository.close(
-            session_id=session_id,
-            user_id=user_id,
-            closing_cash=closing_cash,
-            expected_cash=expected_cash,
-            notes=notes
-        )
-
-    @staticmethod
-    def get_summary(shop_id: int, session_id: int) -> Dict:
-        """
-        Return detailed summary of a register session including payment breakdown.
-        """
-        session = RegisterSessionRepository.get_by_id(session_id)
-        if not session or session.shop_id != shop_id:
-            raise ValueError("Invalid register session.")
-
-        # Aggregate sales per payment method
-        result = db.session.query(
-            func.coalesce(func.sum(Sale.total), 0).label("total_sales"),
-            func.coalesce(func.sum(case((Sale.payment_method == 'cash', Sale.total), else_=0)), 0).label("cash"),
-            func.coalesce(func.sum(case((Sale.payment_method == 'mpesa', Sale.total), else_=0)), 0).label("mpesa"),
-            func.coalesce(func.sum(case((Sale.payment_method == 'card', Sale.total), else_=0)), 0).label("card"),
-            func.coalesce(func.sum(case(
-                (Sale.payment_method.notin_(['cash', 'mpesa', 'card']), Sale.total),
-                else_=0
-            )), 0).label("other"),
-            func.count(Sale.id).label("sale_count")
-        ).filter(
-            Sale.shop_id == shop_id,
-            Sale.register_session_id == session_id,
-            Sale.is_deleted == False
-        ).first()
-
-        opening_cash = float(session.opening_cash or 0)
-        cash_sales = float(result.cash or 0)
-        expected_cash = round(opening_cash + cash_sales, 2)
-
-        return {
-            "session_id": session.id,
-            "opened_at": session.opened_at.strftime('%Y-%m-%d %H:%M'),
-            "opened_by": {
-                "id": session.opened_by.id,
-                "username": session.opened_by.username
-            } if session.opened_by else None,
-            "opening_cash": opening_cash,
-            "total_sales": float(result.total_sales or 0),
-            "expected_cash": expected_cash,
-            "payment_methods": {
-                "cash": round(float(result.cash or 0), 2),
-                "mpesa": round(float(result.mpesa or 0), 2),
-                "card": round(float(result.card or 0), 2),
-                "other": round(float(result.other or 0), 2),
-            },
-            "sale_count": result.sale_count,
-            "is_open": session.closed_at is None
-        }
-
-    @staticmethod
-    def _calculate_expected_cash(shop_id: int, session_id: int) -> float:
-        """
-        Internal helper to compute expected cash (opening + cash sales) for a session.
-        """
-        session = RegisterSessionRepository.get_by_id(session_id)
-        if not session or session.shop_id != shop_id:
-            raise ValueError("Session not found or does not belong to this shop.")
-
-        cash_sales = db.session.query(
-            func.coalesce(func.sum(Sale.total), 0)
-        ).filter(
-            Sale.shop_id == shop_id,
-            Sale.register_session_id == session_id,
-            Sale.payment_method == 'cash',
-            Sale.is_deleted == False
-        ).scalar()
-
-        return round(float(session.opening_cash) + float(cash_sales or 0), 2)
 

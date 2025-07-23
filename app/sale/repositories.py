@@ -3,7 +3,7 @@ from sqlalchemy import func, desc, and_, or_
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from .. import db
-from ..models import Product, Category, Sale, CartItem, RegisterSession 
+from ..models import Product, Category, Sale, CartItem
 from sqlalchemy.orm import contains_eager
 from sqlalchemy.orm import joinedload, with_loader_criteria
 from decimal import Decimal, InvalidOperation
@@ -102,20 +102,14 @@ class ProductRepository:
             .limit(limit)\
             .all()
     @staticmethod
-    def get_bulk_for_sale_and_session(product_ids: List[int], shop_id: int):
+    def get_bulk_for_sale(product_ids: List[int], shop_id: int):
         products = Product.query.filter(
             Product.id.in_(product_ids),
             Product.shop_id == shop_id,
             Product.is_deleted == False
         ).all()
 
-        register_session = RegisterSession.query.filter_by(
-            shop_id=shop_id,
-            closed_at=None,
-            is_deleted=False
-        ).first()
-
-        return products, register_session
+        return products
                 
     @staticmethod
     def update_stock(product_id: int, quantity_change: int) -> bool:
@@ -235,58 +229,12 @@ class CategoryRepository:
 
 class SaleRepository:
     @staticmethod
-    def get_daily_summary(shop_id: int, session_id: int = None) -> Dict[str, float]:
-        """
-        Get sales summary with optional session filter
-        """
-        today = datetime.utcnow().date()
-        query = db.session.query(
-            func.count(Sale.id).label('count'),
-            func.sum(Sale.total).label('total'),
-            func.sum(Sale.subtotal).label('subtotal'),
-            func.sum(Sale.tax).label('tax'),
-            func.sum(CartItem.quantity * Product.cost_price).label('total_cost')
-        ).join(CartItem, Sale.id == CartItem.sale_id)\
-         .join(Product, CartItem.product_id == Product.id)\
-         .filter(Sale.shop_id == shop_id)
-
-        if session_id:
-            query = query.filter(Sale.register_session_id == session_id)
-        else:
-            query = query.filter(func.date(Sale.date) == today)
-
-        result = query.first()
-
-        return {
-            'count': result.count or 0,
-            'total': float(result.total or 0),
-            'subtotal': float(result.subtotal or 0),
-            'tax': float(result.tax or 0),
-            'total_cost': float(result.total_cost or 0),
-            'total_profit': float(result.total or 0) - float(result.total_cost or 0)
-        }
-
-    @staticmethod
-    def get_session_sales_total(session_id: int) -> Decimal:
-        """Get total sales amount for a register session"""
-        result = db.session.query(
-            func.coalesce(func.sum(Sale.total), Decimal(0))
-        ).filter(
-            Sale.register_session_id == session_id
-        ).scalar()
-        return Decimal(result)
-
-    @staticmethod
-    def get_recent_sales(shop_id: int, limit: int = 5, session_id: int = None) -> List[Sale]:
-        """Get recent sales with optional session filter"""
-        query = db.session.query(Sale)\
+    def get_recent_sales(shop_id: int, limit: int = 5) -> List[Sale]:
+        """Get recent sales (no session filtering)"""
+        return db.session.query(Sale)\
             .filter(Sale.shop_id == shop_id)\
-            .order_by(Sale.date.desc())
-
-        if session_id:
-            query = query.filter(Sale.register_session_id == session_id)
-
-        return query.limit(limit).all()
+            .order_by(Sale.date.desc())\
+            .limit(limit).all()
 
     @staticmethod
     def get_sale_with_items(sale_id: int, shop_id: int) -> Optional[Sale]:
@@ -315,10 +263,10 @@ class SaleRepository:
         """
         Create a new sale record using CartItem as sale items
         """
-        # Calculate totals
-        subtotal = sum(item['price'] * item['quantity'] for item in cart_items)
-        tax = subtotal * 0 
-        total = subtotal + tax
+        # Safely calculate subtotal
+        subtotal = float(sum(float(item['price']) * float(item['quantity']) for item in cart_items))
+        tax = float(0)  # or float(subtotal * tax_rate) if needed
+        total = float(subtotal + tax)
 
         # Create sale
         sale = Sale(
@@ -335,131 +283,18 @@ class SaleRepository:
 
         # Add cart items as sale items
         for item in cart_items:
+            quantity = float(item['quantity'])
+            unit_price = float(item['price'])
+
             cart_item = CartItem(
                 shop_id=shop_id,
                 product_id=item['product_id'],
-                quantity=item['quantity'],
+                quantity=quantity,
+                unit_price=unit_price,
+                total_price=unit_price * quantity,
                 sale_id=sale.id
             )
             db.session.add(cart_item)
 
         return sale
 
-
-
-
-class RegisterSessionRepository:
-
-    @staticmethod
-    def get_by_id(session_id: int) -> Optional[RegisterSession]:
-        """Fetch a register session by its ID."""
-        return RegisterSession.query.get(session_id)
-
-    @staticmethod
-    def get_open_session(shop_id: int) -> Optional[RegisterSession]:
-        """Return the currently open session for a shop, if any."""
-        session = RegisterSession.query.filter_by(
-            shop_id=shop_id,
-            closed_at=None,
-            is_deleted=False
-        ).first()
-
-        if session:
-            if session.opening_cash is None or session.opening_cash < 0:
-                raise ValueError("Invalid opening cash in session.")
-        return session
-
-    @staticmethod
-    def get_all(shop_id: int) -> List[RegisterSession]:
-        """List all register sessions for a shop in reverse open order."""
-        return RegisterSession.query.filter_by(
-            shop_id=shop_id,
-            is_deleted=False
-        ).order_by(RegisterSession.opened_at.desc()).all()
-
-    @staticmethod
-    def create(shop_id: int, user_id: int, opening_cash: float) -> RegisterSession:
-        """Create a new register session after validations."""
-        try:
-            opening_cash = Decimal(str(opening_cash)).quantize(Decimal('0.00'))
-            if opening_cash < 0:
-                raise ValueError("Opening cash must be positive.")
-
-            if RegisterSessionRepository.get_open_session(shop_id):
-                raise ValueError("Register is already open.")
-
-            session = RegisterSession(
-                shop_id=shop_id,
-                opened_by_id=user_id,
-                opening_cash=opening_cash
-            )
-            db.session.add(session)
-            db.session.commit()
-            return session
-
-        except (TypeError, ValueError, InvalidOperation) as e:
-            db.session.rollback()
-            raise ValueError(f"Register creation failed: {str(e)}")
-
-    @staticmethod
-    def get_session_summary(session_id: int) -> Optional[Dict[str, Decimal]]:
-        """Return total sales and expected cash for a session."""
-        session = RegisterSession.query.get(session_id)
-        if not session:
-            return None
-
-        total_sales = Decimal(str(SaleRepository.get_session_sales_total(session_id)))
-        opening_cash = Decimal(str(session.opening_cash or 0))
-        expected_cash = opening_cash + total_sales
-
-        return {
-            'session': session,
-            'total_sales': total_sales,
-            'expected_cash': expected_cash
-        }
-
-    @staticmethod
-    def calculate_expected_cash(session_id: int) -> Decimal:
-        """
-        Compute expected cash in the register based on sales and opening cash.
-        """
-        session = RegisterSession.query.get_or_404(session_id)
-
-        if session.closed_at:
-            return session.expected_cash or Decimal('0.00')
-
-        total_sales = db.session.query(
-            func.coalesce(func.sum(Sale.total), 0)
-        ).filter(
-            Sale.register_session_id == session_id
-        ).scalar()
-
-        return Decimal(str(session.opening_cash or 0)) + Decimal(str(total_sales or 0))
-
-    @staticmethod
-    def close(session_id: int, user_id: int, closing_cash: float, expected_cash: Decimal, notes: str = None) -> RegisterSession:
-        try:
-            session = RegisterSession.query.get_or_404(session_id)
-
-            if session.closed_at:
-                raise ValueError("Session is already closed.")
-
-            closing_cash = Decimal(str(closing_cash)).quantize(Decimal('0.00'))
-            expected_cash = Decimal(str(expected_cash)).quantize(Decimal('0.00'))
-
-            if closing_cash < 0:
-                raise ValueError("Closing cash must be positive.")
-
-            session.closing_cash = closing_cash
-            session.closed_by_id = user_id
-            session.closed_at = datetime.utcnow()
-            session.expected_cash = expected_cash
-            session.discrepancy = closing_cash - expected_cash
-            session.notes = notes or ""
-
-            db.session.commit()
-            return session
-
-        except (TypeError, ValueError, InvalidOperation) as e:
-            db.session.rollback()
-            raise ValueError(f"Failed to close register session: {str(e)}")

@@ -4,7 +4,6 @@ from .schemas import ReceiptSchema, ProductSearchSchema
 from app import  shop_access_required, role_required, csrf
 from ..models import Role
 from flask_login import login_required
-from .repositories import RegisterSessionRepository
 from .services import SalesService
 from .controllers import (
     SalesController,
@@ -12,10 +11,8 @@ from .controllers import (
     ReceiptController,
     ProductAPIController,         
     ProductSearchAPIController,   
-    CategoryAPIController,
-    RegisterCloseAPI,
-    RegisterHistoryAPI,
-    RegisterOpenAPI          
+    CategoryAPIController
+            
 )
 from decimal import Decimal
 
@@ -81,36 +78,18 @@ api_bp.add_url_rule(
     methods=['GET']
 )
 
-#sales summary api
-
-api_bp.add_url_rule(
-    '/sales/summary',
-    view_func=controllers.RegisterSummaryAPI.as_view('sales_summary_api'),
-    methods=['GET']
-)
-
-
-# Historical register sessions
-api_bp.add_url_rule(
-    '/register/history',
-    view_func=RegisterHistoryAPI.as_view('register_history_api'),
-    methods=['GET']
-)
-
-# Open register
-api_bp.add_url_rule(
-    '/register/open',
-    view_func=RegisterOpenAPI.as_view('register_open_api'),
-    methods=['POST']
-)
-
-# Close register
-api_bp.add_url_rule(
-    '/register/close',
-    view_func=RegisterCloseAPI.as_view('register_close_api'),
-    methods=['PUT']
-)
-
+@api_bp.route('/pos-data')
+@login_required
+@shop_access_required
+@role_required(Role.CASHIER, Role.ADMIN, Role.TENANT)
+def get_pos_data(shop_id):
+    """Endpoint that provides all initial POS data"""
+    try:
+        pos_data = SalesService.get_pos_data(shop_id)
+        return jsonify(pos_data)
+    except Exception as e:
+        current_app.logger.error(f"POS data error: {str(e)}")
+        return jsonify({'error': 'Failed to load POS data'}), 500
 
 
 
@@ -128,71 +107,6 @@ def get_shop_info(shop_id):
         'currency': shop.currency,
         'logo_url': shop.logo_url
     })
-
-
-
-@api_bp.route('/register/status')
-@login_required
-@shop_access_required
-def check_register_status(shop_id):
-    from .repositories import RegisterSessionRepository
-    session = RegisterSessionRepository.get_open_session(shop_id)
-    return jsonify({
-        'is_open': bool(session),
-        'session_id': session.id if session else None,
-        'opened_at': session.opened_at.isoformat() if session else None,
-        'opened_by': session.opened_by.username if session else None
-    })
-
-@api_bp.route('/register/summary')
-@login_required
-@shop_access_required
-def register_summary(shop_id):
-    from decimal import Decimal
-    from .repositories import RegisterSessionRepository, SaleRepository
-    
-    try:
-        session = RegisterSessionRepository.get_open_session(shop_id)
-        if not session:
-            return jsonify({
-                'success': True,
-                'is_open': False,
-                'message': 'Register is currently closed'
-            }), 200
-
-        total_sales = SaleRepository.get_session_sales_total(session.id)
-        opening_cash = Decimal(str(session.opening_cash))
-        expected_cash = opening_cash + total_sales
-        recent_sales = SaleRepository.get_recent_sales(shop_id, session_id=session.id)
-        
-        return jsonify({
-            'success': True,
-            'is_open': True,
-            'summary': {
-                'session_id': session.id,
-                'opened_at': session.opened_at.isoformat(),
-                'opened_by': session.opened_by.username if session.opened_by else None,
-
-                'opening_cash': float(opening_cash),
-                'total_sales': float(total_sales),
-                'expected_cash': float(expected_cash),
-                'sales_count': len(recent_sales),
-                'total_tax': sum(float(sale.tax) for sale in recent_sales),
-            },
-            'recent_sales': [{
-                'id': sale.id,
-                'total': float(sale.total),
-                'date': sale.date.isoformat(),
-                'payment_method': sale.payment_method
-            } for sale in recent_sales]
-        }), 200
-
-    except Exception as e:
-        current_app.logger.error(f"Register summary error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to get register summary'
-        }), 500
 
 
 

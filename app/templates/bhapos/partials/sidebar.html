@@ -19,7 +19,7 @@
           <div>
             <h6 class="text-sm font-semibold tracking-wide text-gray-800 dark:text-gray-100">
               {% if current_user.is_superadmin() %}BHA<span class="text-blue-500 dark:text-blue-400">Pro</span>{% endif %}
-              {% if current_user.is_tenant() %}{{ business.name }}<span class="text-green-500 dark:text-green-400">Hub</span>{% endif %}
+              {% if current_user.is_tenant() %}{{ business.name }}<span class="text-green-500 dark:text-green-400"></span>{% endif %}
               {% if current_user.is_cashier() %}POS<span class="text-blue-500 dark:text-blue-400">Terminal</span>{% endif %}
             </h6>
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">v2.4.1</p>

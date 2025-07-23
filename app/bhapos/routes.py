@@ -138,8 +138,7 @@ def view_business(id):
 
     business = Business.query.options(
         db.joinedload(Business.users),
-        db.joinedload(Business.shops),
-        db.joinedload(Business.approved_by)
+        db.joinedload(Business.shops)
     ).get_or_404(id)
 
     return render_template('bhapos/view_business.html', 

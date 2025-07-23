@@ -1,6 +1,6 @@
 {% extends 'base_layout.html' %}
 
-{% block title %} Bha POS{% endblock %}
+{% block title %} Bhapos {% endblock %}
 
 {% block content %}
 <div class="min-h-screen bg-gradient-to-br from-blue-900 to-indigo-900 overflow-hidden relative">
@@ -65,7 +65,7 @@
             {% if current_user.is_authenticated %}
               <span class="typing-animation">Welcome back, {{ current_user.username }}! 👋</span>
             {% else %}
-              <span class="typing-animation">Professional Point of Sale System</span>
+              <span class="typing-animation"> Point of Purchase System</span>
             {% endif %}
           </p>
           
@@ -89,7 +89,7 @@
                 </svg>
               </span>
               <span class="button-text">
-                {% if current_user.is_authenticated %}ENTER POS DASHBOARD{% else %}LOGIN TO POS SYSTEM{% endif %}
+                {% if current_user.is_authenticated %}DASHBOARD{% else %}LOGIN{% endif %}
               </span>
               <span class="ripple"></span>
             </a>

@@ -268,9 +268,7 @@
                     <div class="min-w-0 flex-1">
                       <div>
                         <p class="text-sm font-medium text-gray-900 dark:text-white">Business approved</p>
-                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                          By {{ business.approved_by.username }} on {{ business.approved_at.strftime('%b %d, %Y at %I:%M %p') }}
-                        </p>
+                       
                         {% if business.approval_notes %}
                         <div class="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                           <p class="text-sm text-gray-700 dark:text-gray-300 italic">
