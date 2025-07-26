@@ -47,3 +47,4 @@ flask-marshmallow
 flask_wtf
 email_validator
 sqlalchemy-utils
+python-slugify

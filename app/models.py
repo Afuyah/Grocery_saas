@@ -1,4 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
+from flask import url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from enum import Enum
@@ -18,7 +19,8 @@ from sqlalchemy import Numeric, Integer, Float, ForeignKey, String, DateTime, JS
 from sqlalchemy import and_
 import sqlalchemy as sa
 from sqlalchemy.sql import expression
-
+from slugify import slugify 
+import uuid
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -294,6 +296,8 @@ class Shop(BaseModel, BusinessScopedMixin):
     phone = db.Column(db.String(20), nullable=True, unique=True)
     email = db.Column(db.String(150), nullable=True, unique=True)
     currency = db.Column(db.String(10), default="KES", nullable=True)
+    slug = db.Column(db.String(100), unique=True, index=True)
+    allow_registrations = db.Column(db.Boolean, default=True)
     logo_url = db.Column(db.String(255), nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     type = db.Column(SQLAlchemyEnum(ShopType), nullable=True)  
@@ -319,8 +323,28 @@ class Shop(BaseModel, BusinessScopedMixin):
     # Tax relationship with optimized loading
     taxes = db.relationship( 'Tax',  back_populates='shop', cascade="all, delete-orphan",  lazy='selectin',  order_by='Tax.name')
 
+
     def __repr__(self):
         return f"<Shop {self.name} (ID: {self.id})>"
+
+
+    def generate_unique_slug(name):
+        base_slug = slugify(name)
+        slug = base_slug
+        index = 1
+
+        while Shop.query.filter_by(slug=slug).first():
+            slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"  # or use increment
+
+        return slug    
+
+
+
+    def get_registration_url(self):
+        return url_for("auth.register_user", shop_slug=self.slug, _external=True)
+
+        
+
 
     def serialize(self, include_relations=None):
         """

@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 97b48d5e8c3d
+Revision ID: b981d4efec6e
 Revises: 
-Create Date: 2025-07-19 10:21:39.173278
+Create Date: 2025-07-26 13:12:49.537279
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '97b48d5e8c3d'
+revision = 'b981d4efec6e'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -51,7 +51,7 @@ def upgrade():
     sa.Column('approval_notes', sa.Text(), nullable=True),
     sa.Column('logo_url', sa.String(length=255), nullable=True),
     sa.Column('banner_url', sa.String(length=255), nullable=True),
-   
+    sa.ForeignKeyConstraint(['approved_by_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email'),
     sa.UniqueConstraint('registration_number'),
@@ -73,6 +73,8 @@ def upgrade():
     sa.Column('phone', sa.String(length=20), nullable=True),
     sa.Column('email', sa.String(length=150), nullable=True),
     sa.Column('currency', sa.String(length=10), nullable=True),
+    sa.Column('slug', sa.String(length=100), nullable=True),
+    sa.Column('allow_registrations', sa.Boolean(), nullable=True),
     sa.Column('logo_url', sa.String(length=255), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('type', sa.Enum('pos', 'pop', name='shoptype'), nullable=True),
@@ -87,6 +89,7 @@ def upgrade():
     op.create_index(op.f('ix_shops_is_deleted'), 'shops', ['is_deleted'], unique=False)
     op.create_index('ix_shops_name', 'shops', ['name'], unique=False)
     op.create_index('ix_shops_phone', 'shops', ['phone'], unique=False)
+    op.create_index(op.f('ix_shops_slug'), 'shops', ['slug'], unique=True)
     op.create_table('users',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
@@ -201,38 +204,42 @@ def upgrade():
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('barcode', sa.String(length=50), nullable=True),
     sa.Column('sku', sa.String(length=50), nullable=True),
-    sa.Column('cost_price', sa.Numeric(precision=10, scale=2), nullable=False),
-    sa.Column('selling_price', sa.Numeric(precision=10, scale=2), nullable=False),
-    sa.Column('stock', sa.Integer(), nullable=False),
-    sa.Column('low_stock_threshold', sa.Integer(), nullable=True),
+    sa.Column('cost_price', sa.Numeric(precision=10, scale=2), server_default=sa.text('0.00'), nullable=False),
+    sa.Column('selling_price', sa.Numeric(precision=10, scale=2), server_default=sa.text('0.00'), nullable=False),
+    sa.Column('stock', sa.Integer(), server_default=sa.text('0'), nullable=False),
+    sa.Column('low_stock_threshold', sa.Integer(), server_default=sa.text('10'), nullable=True),
     sa.Column('image_url', sa.String(length=255), nullable=True),
-    sa.Column('unit', sa.Enum('piece', 'kg', 'grams', 'punnet', 'bunch', 'packet', 'litr', name='unittype'), nullable=True),
+    sa.Column('secondary_images', sqlalchemy_utils.types.scalar_list.ScalarListType(), nullable=True),
+    sa.Column('unit', sa.Enum('PIECE', 'KILOGRAM', 'GRAM', 'LITER', 'MILLILITER', 'PACKET', 'BOTTLE', 'BOX', 'METER', 'CENTIMETER', name='unittype'), nullable=True),
+    sa.Column('minimum_unit', sa.Numeric(precision=3, scale=2), server_default=sa.text('1.0'), nullable=False),
     sa.Column('category_id', sa.Integer(), nullable=False),
     sa.Column('supplier_id', sa.Integer(), nullable=True),
     sa.Column('combination_size', sa.Integer(), nullable=True),
     sa.Column('combination_price', sa.Numeric(precision=10, scale=2), nullable=True),
     sa.Column('combination_unit_price', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('is_active', sa.Boolean(), nullable=True),
-    sa.Column('is_featured', sa.Boolean(), nullable=True),
+    sa.Column('is_active', sa.Boolean(), server_default=sa.text('true'), nullable=True),
+    sa.Column('is_featured', sa.Boolean(), server_default=sa.text('false'), nullable=True),
+    sa.Column('is_discountable', sa.Boolean(), server_default=sa.text('true'), nullable=True),
     sa.Column('shop_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['category_id'], ['categories.id'], ),
     sa.ForeignKeyConstraint(['shop_id'], ['shops.id'], ),
     sa.ForeignKeyConstraint(['supplier_id'], ['suppliers.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('barcode'),
-    sa.UniqueConstraint('sku')
+    sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_product_barcode', 'products', ['barcode'], unique=False)
+    op.create_index('ix_product_barcode_shop', 'products', ['barcode', 'shop_id'], unique=False)
     op.create_index('ix_product_name_shop', 'products', ['name', 'shop_id'], unique=False)
+    op.create_index('ix_product_search', 'products', ['shop_id', 'name', 'barcode', 'sku'], unique=False)
     op.create_index('ix_product_shop_active', 'products', ['shop_id', 'is_active'], unique=False)
     op.create_index('ix_product_shop_category', 'products', ['shop_id', 'category_id'], unique=False)
     op.create_index('ix_product_shop_combo', 'products', ['shop_id', 'combination_size'], unique=False)
     op.create_index('ix_product_shop_stock', 'products', ['shop_id', 'stock'], unique=False)
     op.create_index('ix_product_shop_supplier', 'products', ['shop_id', 'supplier_id'], unique=False)
-    op.create_index('ix_product_sku', 'products', ['sku'], unique=False)
+    op.create_index('ix_product_sku_shop', 'products', ['sku', 'shop_id'], unique=False)
+    op.create_index(op.f('ix_products_barcode'), 'products', ['barcode'], unique=True)
     op.create_index(op.f('ix_products_category_id'), 'products', ['category_id'], unique=False)
     op.create_index(op.f('ix_products_is_deleted'), 'products', ['is_deleted'], unique=False)
     op.create_index(op.f('ix_products_name'), 'products', ['name'], unique=False)
+    op.create_index(op.f('ix_products_sku'), 'products', ['sku'], unique=True)
     op.create_index(op.f('ix_products_supplier_id'), 'products', ['supplier_id'], unique=False)
     op.create_table('sales',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -380,17 +387,20 @@ def downgrade():
     op.drop_index('ix_sale_date', table_name='sales')
     op.drop_table('sales')
     op.drop_index(op.f('ix_products_supplier_id'), table_name='products')
+    op.drop_index(op.f('ix_products_sku'), table_name='products')
     op.drop_index(op.f('ix_products_name'), table_name='products')
     op.drop_index(op.f('ix_products_is_deleted'), table_name='products')
     op.drop_index(op.f('ix_products_category_id'), table_name='products')
-    op.drop_index('ix_product_sku', table_name='products')
+    op.drop_index(op.f('ix_products_barcode'), table_name='products')
+    op.drop_index('ix_product_sku_shop', table_name='products')
     op.drop_index('ix_product_shop_supplier', table_name='products')
     op.drop_index('ix_product_shop_stock', table_name='products')
     op.drop_index('ix_product_shop_combo', table_name='products')
     op.drop_index('ix_product_shop_category', table_name='products')
     op.drop_index('ix_product_shop_active', table_name='products')
+    op.drop_index('ix_product_search', table_name='products')
     op.drop_index('ix_product_name_shop', table_name='products')
-    op.drop_index('ix_product_barcode', table_name='products')
+    op.drop_index('ix_product_barcode_shop', table_name='products')
     op.drop_table('products')
     op.drop_index(op.f('ix_taxes_is_deleted'), table_name='taxes')
     op.drop_table('taxes')
@@ -415,6 +425,7 @@ def downgrade():
     op.drop_index('ix_user_role', table_name='users')
     op.drop_index('ix_user_business', table_name='users')
     op.drop_table('users')
+    op.drop_index(op.f('ix_shops_slug'), table_name='shops')
     op.drop_index('ix_shops_phone', table_name='shops')
     op.drop_index('ix_shops_name', table_name='shops')
     op.drop_index(op.f('ix_shops_is_deleted'), table_name='shops')

@@ -215,7 +215,7 @@
                                     <span class="font-semibold" id="subtotal">Ksh 0.00</span>
                                 </div>
                                 <div class="flex justify-between text-gray-600 dark:text-gray-300">
-                                    <span>Tax (16%):</span>
+                                    <span>Tax (0%):</span>
                                     <span class="font-semibold" id="tax">Ksh 0.00</span>
                                 </div>
                                 <div class="flex justify-between text-gray-600 dark:text-gray-300">
@@ -628,7 +628,7 @@
                 state.products = data.products || [];
                 state.categories = data.categories || [];
                 state.paymentMethods = data.payment_methods || [];
-                state.taxRate = data.tax_rates?.[0]?.rate || 0.16;
+               
                 renderProducts();
                 renderCategories();
                 setupPaymentMethods();

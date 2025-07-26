@@ -6,10 +6,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date, timedelta, datetime
 from sqlalchemy.exc import SQLAlchemyError
 from app.utils.render import render_htmx
+from .forms import RegistrationForm
 from urllib.parse import urlparse, urljoin
 import logging
 from app import db, csrf, role_required, shop_access_required, business_access_required
-
+from .schemas import RegistrationSchema
 auth_bp = Blueprint('auth', __name__)
 
 # Create a logger instance
@@ -117,7 +118,7 @@ def login():
             return _handle_login_error("Account is disabled", request.is_json)
 
         # Log in user
-        login_user(user)
+        login_user(user, remember=True)
         logger.info(f"User {username} logged in successfully.")
 
         # Determine redirect and store active_shop_id
@@ -128,6 +129,179 @@ def login():
     # GET login form
     next_page = request.args.get('next')
     return render_template('auth/login.html', next=next_page)
+
+
+
+from flask import url_for
+from urllib.parse import urljoin
+
+@auth_bp.route('/api/shops/<int:shop_id>/registration-link', methods=['GET'])
+@login_required
+def get_registration_link(shop_id):
+    
+    shop = Shop.query.get_or_404(shop_id)
+    
+    # Verify user has permission (shop owner/admin)
+    if not (current_user.is_tenant() or 
+            (current_user.is_admin() and current_user.shop_id == shop_id)):
+        return jsonify({
+            'success': False,
+            'error': 'Not authorized to generate registration links for this shop'
+        }), 403
+    
+    # Generate the full registration URL
+    registration_url = url_for(
+        'auth.register_user', 
+        shop_slug=shop.slug, 
+        _external=True
+    )
+    
+    # For POS systems that need a short link
+    short_code = generate_short_code()  
+    short_url = urljoin(request.host_url, f'r/{short_code}')
+    
+    # Store the mapping if needed (in Redis or database)
+    cache.set(f'short_code:{short_code}', shop.slug, timeout=86400)  # 24 hours
+    
+    return jsonify({
+        'success': True,
+        'registration_url': registration_url,
+        'short_url': short_url,
+        'qr_code_url': f'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={registration_url}',
+        'shop': {
+            'id': shop.id,
+            'name': shop.name,
+            'slug': shop.slug
+        }
+    })
+
+
+
+
+
+def create_cashier_user(data, shop):
+    """Create a new cashier user with validated data"""
+    return User(
+        username=data['username'].lower().strip(),
+        email=data.get('email', '').lower().strip() or None,
+        first_name=data.get('first_name', '').strip(),
+        last_name=data.get('last_name', '').strip(),
+        phone=data.get('phone', '').strip(),
+        shop_id=shop.id,
+        business_id=shop.business_id,
+        role=Role.CASHIER,
+        is_active=True
+    ).set_password(data['password'])
+
+def handle_registration_success(user, shop):
+    """Handle successful registration response with auto-login and address check"""
+    logger.info(f"New cashier registered: {user.username} for shop {shop.id} (slug: {shop.slug})")
+    
+    # Auto-login the user
+    login_user(user)
+    user.record_login()  # Update last_login_at
+    db.session.commit()
+
+    # Check if address is set
+    redirect_url = url_for('auth.set_address') if not user.address else url_for('sales.sales_screen', shop_id=shop.id)
+
+    if request.is_json:
+        return jsonify({
+            'success': True,
+            'user': user.serialize(),
+            'redirect': redirect_url
+        }), 201
+    
+    flash('Registration successful!', 'success')
+    return Response(
+        headers={"HX-Redirect": redirect_url}
+    )
+
+
+def handle_registration_error(message, shop, form=None):
+    """Handle registration error response"""
+    db.session.rollback()
+    
+    if request.is_json:
+        return jsonify({
+            'success': False,
+            'error': message
+        }), 400
+    
+    flash(message, 'error')
+    return render_htmx(
+        'auth/register.html',
+        shop=shop,
+        form=form or RegistrationForm(),
+        errors=message if isinstance(message, dict) else None
+    )
+
+
+@auth_bp.route('/register/<shop_slug>', methods=['GET', 'POST'])
+def register_user(shop_slug):
+    """
+    Public registration endpoint for users to register as CASHIER for a shop.
+    Auto-logs in the user and redirects to address setup if address is not set,
+    otherwise to the purchase screen.
+    """
+    try:
+        # Find active, non-deleted shop by slug
+        shop = Shop.query.filter_by(slug=shop_slug, is_active=True, is_deleted=False).first()
+        if not shop:
+            logger.warning(f"Registration attempt for non-existent or inactive shop slug: {shop_slug}")
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'Shop not found'}), 404
+            return render_htmx('auth/register.html', shop=None), 404
+
+        if not shop.allow_registrations:
+            logger.info(f"Registration attempt for shop {shop.name} (slug: {shop_slug}) with registrations disabled")
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'Registrations are currently disabled for this shop'}), 403
+            return render_htmx('auth/register.html', shop=shop, registration_disabled=True), 403
+
+        if request.method == 'POST':
+            if request.is_json:
+                data = request.get_json(silent=True)
+                if not data:
+                    return handle_registration_error("Invalid JSON data", shop)
+                form = RegistrationForm(data=data)
+            else:
+                form = RegistrationForm()
+
+            if form.validate_on_submit():
+                try:
+                    # Create user using helper function
+                    user = create_cashier_user(form.data, shop)
+                    db.session.add(user)
+                    db.session.commit()
+                    return handle_registration_success(user, shop)
+
+                except IntegrityError:
+                    logger.warning(f"Duplicate username or email for shop {shop.id}: {form.username.data}/{form.email.data}")
+                    if request.is_json:
+                        return jsonify({'success': False, 'error': 'Username or email already exists'}), 409
+                    form.username.errors.append('Username or email already exists')
+                    return handle_registration_error(form.errors, shop, form)
+
+                except Exception as e:
+                    logger.error(f"Error registering user for shop {shop.id}: {str(e)}")
+                    return handle_registration_error("Registration failed. Please try again later.", shop, form)
+
+            # Form validation failed
+            if request.is_json:
+                return jsonify({'success': False, 'errors': form.errors}), 400
+            return render_htmx('auth/register.html', form=form, shop=shop)
+
+        # GET: Render registration form
+        return render_htmx('auth/register.html', form=RegistrationForm(), shop=shop)
+
+    except Exception as e:
+        logger.critical(f"Unexpected registration error for shop slug {shop_slug}: {str(e)}", exc_info=True)
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Unexpected error occurred'}), 500
+        return render_htmx('auth/register.html', error="Unexpected error occurred.", shop=None), 500
+
+
 
 
 @csrf.exempt

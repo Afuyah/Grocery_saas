@@ -1092,6 +1092,8 @@ def format_sales_metrics(result):
     }
 
 
+from ..utils.helpers import slugify
+
 @bhapos_bp.route('/business/<int:business_id>/create-shop', methods=['GET', 'POST'])
 @login_required
 def create_shop(business_id):
@@ -1115,8 +1117,18 @@ def create_shop(business_id):
 
         try:
             with db.session.begin_nested():
+                base_slug = slugify(form.name.data.strip())
+                slug = base_slug
+                counter = 1
+
+                # Ensure slug uniqueness
+                while Shop.query.filter_by(slug=slug).first():
+                    slug = f"{base_slug}-{counter}"
+                    counter += 1
+
                 shop = Shop(
                     name=form.name.data.strip(),
+                    slug=slug,
                     location=form.location.data.strip(),
                     phone=phone,
                     email=form.email.data.strip().lower() if form.email.data else None,
@@ -1126,7 +1138,7 @@ def create_shop(business_id):
                     type=None  # Will be set in setup wizard
                 )
                 db.session.add(shop)
-                db.session.flush()  # Get shop.id
+                db.session.flush()
 
                 register_session = RegisterSession(
                     shop_id=shop.id,
@@ -1156,6 +1168,22 @@ def create_shop(business_id):
             flash("An unexpected error occurred. Our team has been notified.", "danger")
 
     return render_template('bhapos/tenants/create_shop.html', form=form, business=business)
+
+
+
+@bhapos_bp.route('/shop/<int:shop_id>/toggle-registrations', methods=['POST'])
+@login_required
+def toggle_registrations(shop_id):
+    shop = Shop.query.get_or_404(shop_id)
+    if not current_user.is_tenant() or current_user.business_id != shop.business_id:
+        flash("Unauthorized", "error")
+        return redirect(url_for('bhapos.tenant_dashboard'))
+    shop.allow_registrations = not shop.allow_registrations
+    db.session.commit()
+    flash(f"Registrations {'enabled' if shop.allow_registrations else 'disabled'}", "success")
+    return redirect(url_for('bhapos.tenant_dashboard'))
+
+
 
 
 @bhapos_bp.route('/tenant/<int:business_id>/create-user', methods=['GET', 'POST'])

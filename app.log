@@ -37,3 +37,14 @@ Traceback (most recent call last):
            ^^^^^^^^^
 NameError: name 'usernames' is not defined
 2025-07-06 13:46:37,144 - ERROR - 500 Internal Server Error: 500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.
+2025-07-23 20:19:46,870 - WARNING - 404 Error at http://127.0.0.1:5000/favicon.ico
+2025-07-23 20:19:57,942 - WARNING - 404 Error at http://127.0.0.1:5000/favicon.ico
+2025-07-23 20:20:33,667 - WARNING - 404 Error at http://127.0.0.1:5000/favicon.ico
+2025-07-23 20:21:06,163 - ERROR - Post-checkout task failed
+2025-07-23 20:21:29,147 - WARNING - 404 Error at http://127.0.0.1:5000/favicon.ico
+2025-07-23 20:22:23,294 - WARNING - 404 Error at http://127.0.0.1:5000/favicon.ico
+2025-07-23 20:22:49,450 - WARNING - 404 Error at http://127.0.0.1:5000/favicon.ico
+2025-07-23 20:23:20,706 - WARNING - 404 Error at http://127.0.0.1:5000/favicon.ico
+2025-07-23 20:26:19,487 - WARNING - 404 Error at http://127.0.0.1:5000/favicon.ico
+2025-07-23 20:26:36,815 - WARNING - 404 Error at http://127.0.0.1:5000/favicon.ico
+2025-07-23 20:26:46,355 - WARNING - 404 Error at http://127.0.0.1:5000/favicon.ico
