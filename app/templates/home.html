@@ -1,353 +1,348 @@
 {% extends 'base_layout.html' %}
 
-{% block title %} Bhapos {% endblock %}
+{% block title %}{{ shop.name if shop else 'Nourisha' }} - Point of Sale System{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gradient-to-br from-blue-900 to-indigo-900 overflow-hidden relative">
-  <!-- Animated background elements -->
-  <div class="absolute inset-0 overflow-hidden">
-    <div class="absolute -top-20 -left-20 w-72 h-72 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-    <div class="absolute top-1/3 -right-20 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-    <div class="absolute bottom-20 left-1/4 w-80 h-80 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
-  </div>
-
-  <!-- Floating particles -->
-  <div class="particles-container absolute inset-0 overflow-hidden pointer-events-none">
-    {% for i in range(15) %}
-    <div class="particle absolute rounded-full bg-white/10" style="
-      width: {{ range(2, 6)|random }}px;
-      height: {{ range(2, 6)|random }}px;
-      top: {{ range(0, 100)|random }}%;
-      left: {{ range(0, 100)|random }}%;
-      animation: float {{ range(10, 25)|random }}s linear infinite;
-      animation-delay: -{{ range(0, 15)|random }}s;
-    "></div>
-    {% endfor %}
-  </div>
-
-  <!-- Main content -->
-  <div class="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 py-12 sm:px-6 lg:px-8">
-    <div class="w-full max-w-md space-y-8">
-      <!-- Glass card -->
-      <div class="glass-card bg-white/5 backdrop-blur-lg rounded-2xl shadow-xl overflow-hidden border border-white/10 transition-all duration-500 hover:shadow-2xl transform hover:-translate-y-1 hover:scale-[1.01]">
-        <div class="p-8 text-center">
-          <!-- Logo/Branding with animated ring -->
-          <div class="flex justify-center mb-6 relative">
-            <div class="absolute inset-0 flex items-center justify-center">
-              <div class="ring-animation w-24 h-24 rounded-full border-2 border-transparent border-t-white/30 border-r-white/30"></div>
-            </div>
-            <div class="flex items-center justify-center w-20 h-20 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg z-10">
-              <!-- Dynamic lock icon with shine effect -->
-              <div class="relative">
-                <svg id="authIcon" xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-white transition-all duration-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path id="lockPath" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                <div id="iconShine" class="shine-effect absolute inset-0 bg-white/20 rounded-full pointer-events-none"></div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Animated title -->
-          <h1 class="text-4xl font-bold text-white mb-2 transform transition-all duration-700 hover:scale-105 inline-block">
-            <span class="title-gradient bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-              <span class="letter-animation" style="animation-delay: 0.1s">B</span>
-              <span class="letter-animation" style="animation-delay: 0.2s">h</span>
-              <span class="letter-animation" style="animation-delay: 0.3s">a</span>
-              <span class="opacity-0"> </span>
-              <span class="letter-animation" style="animation-delay: 0.4s">P</span>
-              <span class="letter-animation" style="animation-delay: 0.5s">O</span>
-              <span class="letter-animation" style="animation-delay: 0.6s">S</span>
-            </span>
-          </h1>
-          
-          <!-- Auth message with typing animation -->
-          <p id="authMessage" class="text-lg text-blue-100 mb-8 transition-all duration-700 h-6">
-            {% if current_user.is_authenticated %}
-              <span class="typing-animation">Welcome back, {{ current_user.username }}! 👋</span>
-            {% else %}
-              <span class="typing-animation"> Point of Purchase System</span>
-            {% endif %}
-          </p>
-          
-          <!-- Dynamic Button with ripple effect -->
-          <div class="mt-8 relative overflow-hidden">
-            <a id="authButton" href="
-  {% if current_user.is_authenticated and current_shop %}
-    {{ url_for('sales.sales_screen', shop_id=current_shop.id) }}
-  {% else %}
-    {{ url_for('auth.login') }}
-  {% endif %}"
-               class="relative overflow-hidden group w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white shadow-md transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500
-                      {% if current_user.is_authenticated %}bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700{% else %}bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700{% endif %}">
-              <span class="absolute left-0 inset-y-0 flex items-center pl-3">
-                <svg class="h-5 w-5 {% if current_user.is_authenticated %}text-green-200 group-hover:text-green-100{% else %}text-blue-200 group-hover:text-blue-100{% endif %} transition-colors" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  {% if current_user.is_authenticated %}
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clip-rule="evenodd" />
-                  {% else %}
-                    <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
-                  {% endif %}
-                </svg>
-              </span>
-              <span class="button-text">
-                {% if current_user.is_authenticated %}DASHBOARD{% else %}LOGIN{% endif %}
-              </span>
-              <span class="ripple"></span>
-            </a>
-          </div>
-          
-          <!-- Additional links with fade-in -->
-          <div class="mt-6 text-center transition-opacity duration-1000 opacity-0" id="secondaryLinks">
-            {% if current_user.is_authenticated %}
-              <a href="{{ url_for('auth.logout') }}" class="text-blue-300 hover:text-white text-sm font-medium transition-colors inline-flex items-center group">
-                <span>Not {{ current_user.username }}?</span>
-                <span class="ml-1 group-hover:underline">Logout</span>
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </a>
-            {% else %}
-              <a href="#" class="text-blue-300 hover:text-white text-sm font-medium transition-colors inline-flex items-center group">
-                <span>Learn about our features</span>
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
-              </a>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-      
-      <!-- Footer note with wave animation -->
-      <div class="text-center">
-        <p class="text-blue-200 text-xs inline-flex items-center">
-          <span class="wave-animation mr-1">👋</span>
-          Version 2.4.1 • © {{ now.year }} Bha. All rights reserved.
-          {% if current_user.is_authenticated %}
-            <span class="ml-2 inline-flex items-center">
-              <span class="relative flex h-2 w-2 mr-1">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-              </span>
-              Session active
-            </span>
-          {% endif %}
-        </p>
-      </div>
+<div class="min-h-screen bg-gradient-to-br from-green-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex flex-col transition-colors duration-300">
+  <!-- Top Announcement Bar -->
+  <div class="bg-gradient-to-r from-green-600 to-emerald-700 dark:from-emerald-800 dark:to-green-900 text-white text-sm py-2 px-4 text-center shadow-sm">
+    <div class="max-w-7xl mx-auto flex items-center justify-center">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 animate-pulse" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+      </svg>
+      <span class="font-medium">Welcome to {{ shop.name if shop else 'Nourisha Groceries' }} • Now with 20% faster checkout • <span class="font-semibold">Today's Special: 15% off fresh produce</span></span>
     </div>
   </div>
 
-  
+  <!-- Main Content -->
+  <main class="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 transition-all duration-300">
+    <div class="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+      <!-- Left Panel - Branding & Features -->
+      <div class="flex flex-col space-y-8">
+        <!-- Store Branding with Animated Logo -->
+        <div class="flex items-center space-x-4 group">
+          <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-green-600 to-emerald-600 dark:from-emerald-700 dark:to-green-800 flex items-center justify-center shadow-lg transform group-hover:rotate-6 transition-transform duration-300">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-9 w-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">{{ shop.name if shop else 'Nourisha Groceries' }}</h1>
+            <p class="text-gradient bg-gradient-to-r from-green-600 to-emerald-600 dark:from-emerald-400 dark:to-green-400 bg-clip-text text-transparent font-medium inline-flex items-center">
+              <span>Point of Purchase System</span>
+              <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-emerald-900/30 text-green-800 dark:text-emerald-200">v2.4.1</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Hero Message -->
+        <div class="space-y-5">
+          <h2 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white leading-tight">
+            {% if current_user.is_authenticated %}
+              <span class="text-gradient bg-gradient-to-r from-green-600 to-emerald-600 dark:from-emerald-400 dark:to-green-400 bg-clip-text text-transparent">Welcome back,</span> {{ current_user.username }}!
+            {% else %}
+              <span class="text-gradient bg-gradient-to-r from-green-600 to-emerald-600 dark:from-emerald-400 dark:to-green-400 bg-clip-text text-transparent">Smart Shopping</span> Made Simple
+            {% endif %}
+          </h2>
+          <p class="text-lg text-gray-600 dark:text-gray-300/90 leading-relaxed">
+            {% if current_user.is_authenticated %}
+              Our inventory has been freshly stocked with premium quality products just for you. Start shopping now for the best selection!
+            {% else %}
+              Experience seamless checkout with our modern POS system. Sign in to access exclusive member pricing and faster checkout.
+            {% endif %}
+          </p>
+        </div>
+
+        {% if current_user.is_authenticated %}
+          <!-- Action Buttons for Logged-in Users -->
+          <div class="flex flex-col sm:flex-row gap-4 pt-2">
+            <a href="{{ url_for('sales.sales_screen', shop_id=current_shop.id) }}" 
+               class="relative inline-flex items-center justify-center px-8 py-4 overflow-hidden font-medium rounded-xl shadow-lg group bg-gradient-to-br from-green-600 to-emerald-600 dark:from-emerald-700 dark:to-green-800 text-white hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5">
+              <span class="absolute inset-0 w-full h-full transition duration-300 ease-out opacity-0 bg-gradient-to-br from-green-700 to-emerald-800 group-hover:opacity-100"></span>
+              <span class="relative flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                </svg>
+                Start Shopping
+              </span>
+            </a>
+            
+            <a href="#" 
+               class="relative inline-flex items-center justify-center px-6 py-4 overflow-hidden font-medium rounded-xl border-2 border-green-600 dark:border-emerald-500 text-green-700 dark:text-emerald-400 hover:text-white dark:hover:text-white transition-all duration-300 group">
+              <span class="absolute inset-0 w-full h-full bg-gradient-to-br from-green-600 to-emerald-600 opacity-0 group-hover:opacity-100 transition duration-300 ease-out"></span>
+              <span class="relative flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" />
+                </svg>
+                Today's Specials
+              </span>
+            </a>
+          </div>
+        {% else %}
+          <!-- Features Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div class="bg-white dark:bg-gray-800/50 rounded-xl shadow-sm p-5 hover:shadow-md transition-all duration-300 border border-gray-200 dark:border-gray-700/50 backdrop-blur-sm hover:border-green-300 dark:hover:border-emerald-500/50">
+              <div class="bg-green-100 dark:bg-emerald-900/30 w-12 h-12 rounded-xl flex items-center justify-center mb-3 transition-colors duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+                </svg>
+              </div>
+              <h4 class="font-semibold text-gray-900 dark:text-white text-lg">Lightning Fast Delivery</h4>
+              <p class="text-sm text-gray-600 dark:text-gray-300/80 mt-1">Get your groceries delivered in under 3 hours or get 10% off</p>
+            </div>
+            
+            <div class="bg-white dark:bg-gray-800/50 rounded-xl shadow-sm p-5 hover:shadow-md transition-all duration-300 border border-gray-200 dark:border-gray-700/50 backdrop-blur-sm hover:border-green-300 dark:hover:border-emerald-500/50">
+              <div class="bg-green-100 dark:bg-emerald-900/30 w-12 h-12 rounded-xl flex items-center justify-center mb-3 transition-colors duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                </svg>
+              </div>
+              <h4 class="font-semibold text-gray-900 dark:text-white text-lg">Quality Guaranteed</h4>
+              <p class="text-sm text-gray-600 dark:text-gray-300/80 mt-1">Freshness guaranteed or your money back - no questions asked</p>
+            </div>
+          </div>
+        {% endif %}
+
+        <!-- Stats & Testimonials -->
+        <div class="pt-2">
+          <div class="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+            <div class="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-green-500 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>400+ Happy Customers</span>
+            </div>
+            <div class="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-green-500 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+              </svg>
+              <span>Mombasa Wide Delivery</span>
+            </div>
+            <div class="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-green-500 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0l-3-3m3 3l3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+              </svg>
+              <span>Same Day Dispatch</span>
+            </div>
+          </div>
+          
+          {% if not current_user.is_authenticated %}
+          <div class="mt-6 bg-gray-100 dark:bg-gray-800/60 rounded-xl p-4 border border-gray-200 dark:border-gray-700/50">
+            <div class="flex items-start">
+              <div class="flex-shrink-0 h-10 w-10 rounded-full bg-gradient-to-br from-green-100 to-white dark:from-emerald-900/30 dark:to-gray-800 flex items-center justify-center shadow-inner">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+                </svg>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm text-gray-600 dark:text-gray-300 italic">"The checkout process is so smooth! I save at least 15 minutes every visit compared to other stores."</p>
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">— Sarah M., Loyal Customer</p>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Right Panel - Login Form (Only shown when not authenticated) -->
+      {% if not current_user.is_authenticated %}
+      <div class="relative">
+        <div class="absolute -inset-1 bg-gradient-to-r from-green-400 to-emerald-500 rounded-2xl opacity-20 blur-lg dark:opacity-30 transition-all duration-300 group-hover:opacity-40"></div>
+        <div class="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden border border-gray-200 dark:border-gray-700/50 backdrop-blur-sm">
+          <!-- Form Header with Animated Gradient -->
+          <div class="bg-gradient-to-r from-green-600 to-emerald-600 dark:from-emerald-700 dark:to-green-800 p-8 text-center relative overflow-hidden">
+            <div class="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-white/10"></div>
+            <div class="absolute -bottom-20 -left-20 w-40 h-40 rounded-full bg-white/5"></div>
+            
+            <div class="relative z-10">
+              <div class="flex justify-center mb-4">
+                <div class="flex items-center justify-center w-16 h-16 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 transform transition-all duration-300 hover:rotate-12">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                  </svg>
+                </div>
+              </div>
+              <h2 class="text-2xl font-bold text-white">Welcome Back</h2>
+              <p class="text-green-100/90 text-sm mt-1">Sign in to your account</p>
+            </div>
+          </div>
+
+          <!-- Login Form -->
+          <form class="p-8 space-y-6" action="{{ url_for('auth.login') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <!-- Username/Email -->
+            <div>
+              <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email or Username</label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                  </svg>
+                </div>
+                <input id="username" name="username" type="text" required autocomplete="username"
+                    class="block w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+                    placeholder="you@example.com">
+              </div>
+            </div>
+
+            <!-- Password -->
+            <div>
+              <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Password</label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                  </svg>
+                </div>
+                <input id="password" name="password" type="password" required autocomplete="current-password"
+                    class="block w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+                    placeholder="••••••••">
+                <button type="button" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Remember & Forgot -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center">
+                <input id="remember" name="remember" type="checkbox"
+                    class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 focus:ring-offset-0">
+                <label for="remember" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Remember me</label>
+              </div>
+              <div class="text-sm">
+                <a href="#" class="font-medium text-green-600 hover:text-green-500 dark:text-green-400 dark:hover:text-green-300 transition-colors">Forgot password?</a>
+              </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div>
+              <button type="submit" id="login-button"
+                      class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-300 group">
+                <span id="button-text">Sign In</span>
+                <svg id="button-spinner" class="hidden h-5 w-5 ml-2 text-white animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </button>
+            </div>
+
+           
+
+            <div class="grid grid-cols-2 gap-3 mt-6">
+              
+              
+            </div>
+          </form>
+
+          <!-- Footer -->
+          <div class="px-8 py-4 bg-gray-50 dark:bg-gray-800/30 text-center border-t border-gray-200 dark:border-gray-700/50">
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              <span class="inline-flex items-center mr-2">
+                <span class="relative flex h-2 w-2 mr-1">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                Secure POS system • Version 2.4.1
+              </span>
+              <span class="hidden sm:inline">•</span>
+              <span class="block sm:inline mt-1 sm:mt-0">© 2023 Nourisha Groceries</span>
+            </p>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700/50 py-6 transition-colors duration-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col md:flex-row items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
+          </svg>
+          <div>
+            <p class="text-sm text-gray-500 dark:text-gray-400">© 2023 Nourisha Groceries. All rights reserved.</p>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Premium quality groceries delivered to your doorstep</p>
+          </div>
+        </div>
+        <div class="mt-4 md:mt-0 flex items-center space-x-6">
+          <a href="#" class="text-sm text-gray-500 hover:text-green-600 dark:hover:text-emerald-400 dark:text-gray-400 transition-colors">Privacy</a>
+          <a href="#" class="text-sm text-gray-500 hover:text-green-600 dark:hover:text-emerald-400 dark:text-gray-400 transition-colors">Terms</a>
+          <a href="#" class="text-sm text-gray-500 hover:text-green-600 dark:hover:text-emerald-400 dark:text-gray-400 transition-colors">Contact</a>
+          <span class="text-xs text-gray-400 dark:text-gray-500">Powered by <span class="text-green-600 dark:text-emerald-400 font-medium">BhaTek Solutions</span></span>
+        </div>
+      </div>
+    </div>
+  </footer>
 </div>
 
+<!-- Custom Styles -->
 <style>
-  /* Blob background animation */
-  @keyframes blob {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    33% { transform: translate(30px, -50px) scale(1.1); }
-    66% { transform: translate(-20px, 20px) scale(0.9); }
+  .text-gradient {
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
   
-  /* Particle floating animation */
   @keyframes float {
-    0% { transform: translateY(0) translateX(0); }
-    50% { transform: translateY(-20px) translateX(10px); }
-    100% { transform: translateY(0) translateX(0); }
-  }
-  
-  /* Ring loading animation */
-  @keyframes rotate {
-    100% { transform: rotate(360deg); }
-  }
-  
-  /* Letter animation */
-  @keyframes letterFloat {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
+    50% { transform: translateY(-5px); }
   }
   
-  /* Typing animation */
-  @keyframes typing {
-    from { width: 0; }
-    to { width: 100%; }
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
   }
   
-  /* Wave animation */
-  @keyframes wave {
-    0%, 100% { transform: rotate(0deg); }
-    25% { transform: rotate(-10deg); }
-    75% { transform: rotate(10deg); }
+  .backdrop-blur-sm {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
   }
-  
-  /* Shine effect */
-  @keyframes shine {
-    0% { transform: translateX(-100%) rotate(45deg); }
-    100% { transform: translateX(100%) rotate(45deg); }
-  }
-  
-  /* Ripple effect */
-  @keyframes ripple {
-    0% { transform: scale(0); opacity: 1; }
-    100% { transform: scale(4); opacity: 0; }
-  }
-  
-  /* Loader animations */
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  
-  @keyframes loader-line {
-    0% { transform: scaleY(0.1); }
-    50% { transform: scaleY(1); }
-    100% { transform: scaleY(0.1); }
-  }
-
-  /* Applied animations */
-  .animate-blob { animation: blob 7s infinite; }
-  .animation-delay-2000 { animation-delay: 2s; }
-  .animation-delay-4000 { animation-delay: 4s; }
-  .particle { animation: float 15s infinite linear; }
-  .ring-animation { animation: rotate 8s linear infinite; }
-  .letter-animation { 
-    display: inline-block;
-    animation: letterFloat 3s ease-in-out infinite; 
-  }
-  .typing-animation {
-    display: inline-block;
-    overflow: hidden;
-    white-space: nowrap;
-    animation: typing 2s steps(40, end);
-  }
-  .wave-animation { animation: wave 1.5s ease-in-out infinite; }
-  .shine-effect {
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: linear-gradient(
-      to bottom right,
-      rgba(255, 255, 255, 0) 45%,
-      rgba(255, 255, 255, 0.8) 50%,
-      rgba(255, 255, 255, 0) 55%
-    );
-    transform: rotate(45deg);
-    animation: shine 3s ease-in-out infinite;
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-  .ripple {
-    position: absolute;
-    border-radius: 50%;
-    background-color: rgba(255, 255, 255, 0.3);
-    transform: scale(0);
-    animation: ripple 0.6s linear;
-    pointer-events: none;
-  }
-  
-  /* Glass card effect */
-  .glass-card {
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-  }
-  
-  /* Title gradient */
-  .title-gradient {
-    background-size: 200% auto;
-    animation: gradient 3s ease infinite;
-  }
-  
-  @keyframes gradient {
-    0% { background-position: 0% center; }
-    50% { background-position: 100% center; }
-    100% { background-position: 0% center; }
-  }
-  
-
- 
 </style>
 
+<!-- Form Submission Handler -->
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    // Hide preloader when page loads
-   
-
-    // Show secondary links after delay
-    setTimeout(() => {
-      document.getElementById('secondaryLinks').style.opacity = '1';
-    }, 1800);
-
-    // Check authentication state
-    const isAuthenticated = {% if current_user.is_authenticated %}true{% else %}false{% endif %};
-    const authIcon = document.getElementById('authIcon');
-    const lockPath = document.getElementById('lockPath');
-    const iconShine = document.getElementById('iconShine');
-    
-    if (isAuthenticated) {
-      // Change to unlocked icon with animation
-      setTimeout(() => {
-        lockPath.setAttribute('d', 'M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z');
-        iconShine.style.opacity = '1';
-      }, 500);
-      
-      // Add subtle pulse effect to indicate active session
-      setInterval(() => {
-        authIcon.classList.toggle('scale-110');
-      }, 2000);
+  document.addEventListener('DOMContentLoaded', function() {
+    const loginForm = document.querySelector('form');
+    if (loginForm) {
+      loginForm.addEventListener('submit', function(e) {
+        const button = this.querySelector('#login-button');
+        const buttonText = this.querySelector('#button-text');
+        const spinner = this.querySelector('#button-spinner');
+        
+        if (button && buttonText && spinner) {
+          button.disabled = true;
+          buttonText.textContent = 'Authenticating...';
+          spinner.classList.remove('hidden');
+          
+          // Add a small delay to allow the animation to show even if form submission is fast
+          setTimeout(() => {
+            if (button.disabled) {
+              buttonText.textContent = 'Redirecting...';
+            }
+          }, 800);
+        }
+      });
     }
-
-    // Mouse parallax effect
-    let timeout;
-    document.addEventListener('mousemove', (e) => {
-      clearTimeout(timeout);
-      const x = e.clientX / window.innerWidth;
-      const y = e.clientY / window.innerHeight;
-      
-      document.querySelector('.glass-card').style.transform = `
-        perspective(1000px)
-        rotateX(${(y - 0.5) * 5}deg)
-        rotateY(${(x - 0.5) * -5}deg)
-        scale(1.01)
-      `;
-      
-      // Reset after inactivity
-      timeout = setTimeout(() => {
-        document.querySelector('.glass-card').style.transform = '';
-      }, 1000);
-    });
-
-    // Ripple effect for buttons
-    document.getElementById('authButton').addEventListener('click', function(e) {
-      // Create ripple
-      const ripple = document.createElement('span');
-      ripple.classList.add('ripple');
-      
-      // Position ripple
-      const rect = this.getBoundingClientRect();
-      const size = Math.max(rect.width, rect.height);
-      ripple.style.width = ripple.style.height = `${size}px`;
-      ripple.style.left = `${e.clientX - rect.left - size/2}px`;
-      ripple.style.top = `${e.clientY - rect.top - size/2}px`;
-      
-      // Add ripple to button
-      this.appendChild(ripple);
-      
-      // Remove ripple after animation
-      setTimeout(() => {
-        ripple.remove();
-      }, 600);
-    });
-
-    // Hover effect for icon shine
-    const iconContainer = document.querySelector('.relative');
-    iconContainer.addEventListener('mouseenter', () => {
-      iconShine.style.opacity = '1';
-    });
-    iconContainer.addEventListener('mouseleave', () => {
-      if (!isAuthenticated) {
-        iconShine.style.opacity = '0';
-      }
-    });
+    
+    // Toggle password visibility
+    const passwordInput = document.getElementById('password');
+    const togglePassword = document.querySelector('[type="button"]');
+    if (passwordInput && togglePassword) {
+      togglePassword.addEventListener('click', function() {
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+        this.querySelector('svg').classList.toggle('text-gray-500');
+      });
+    }
   });
 </script>
 {% endblock %}

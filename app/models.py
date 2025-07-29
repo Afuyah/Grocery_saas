@@ -301,7 +301,7 @@ class Shop(BaseModel, BusinessScopedMixin):
     logo_url = db.Column(db.String(255), nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     type = db.Column(SQLAlchemyEnum(ShopType), nullable=True)  
-    
+    short_url_code = db.Column(db.String(10), unique=True, nullable=True)
 
     # Rest of your model relationships and methods...
     register_sessions = db.relationship('RegisterSession', back_populates='shop', cascade='all, delete-orphan')
@@ -316,6 +316,8 @@ class Shop(BaseModel, BusinessScopedMixin):
     # Other relationships with optimized loading
     suppliers = db.relationship( 'Supplier', back_populates='shop', cascade="all, delete-orphan",  lazy='dynamic', order_by='Supplier.name' )    
     expenses = db.relationship( 'Expense',  back_populates='shop',  cascade="all, delete-orphan",  lazy='dynamic', order_by='Expense.date.desc()')
+
+    user_addresses = db.relationship( 'UserAddress',  back_populates='shop',  cascade="all, delete-orphan",  lazy='dynamic')
 
     # Added bulk operations for stock logs
     stock_logs = db.relationship('StockLog', back_populates='shop', cascade="all, delete-orphan", lazy='dynamic', order_by='StockLog.created_at.desc()'
@@ -571,6 +573,44 @@ class User(UserMixin, BaseModel, ShopScopedMixin, BusinessScopedMixin):
         db.Index('ix_user_business', 'business_id'),
         db.Index('ix_user_shop', 'shop_id'),
     )
+
+
+    @property
+    def is_active(self):
+        return not self.is_locked()
+
+
+    @property
+    def has_address(self):
+        """Check if user has at least one valid address"""
+        return bool(self.addresses)
+    
+    @property
+    def primary_address(self):
+        """Get the user's primary address"""
+        return next((addr for addr in self.addresses if addr.is_primary), None)
+    
+    def set_primary_address(self, address_id):
+        """Set a specific address as primary"""
+        for addr in self.addresses:
+            addr.is_primary = (addr.id == address_id)
+        db.session.commit()
+        return self
+    
+
+
+    def needs_address(self):
+        """Determine if this user role requires an address"""
+        return not (self.is_superadmin() or self.is_tenant())
+
+
+    def get_addresses(self):
+        """Get all non-deleted addresses ordered by primary first"""
+        return sorted(
+            [addr for addr in self.addresses if not addr.is_deleted],
+            key=lambda x: not x.is_primary
+        )    
+
 
     def get_full_name(self):
         """Get user's full name"""
@@ -1211,5 +1251,115 @@ class PriceChange(BaseModel, ShopScopedMixin):
         db.session.add(record)
         return record
     
-
+class County(BaseModel):
+    __tablename__ = 'counties'
     
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    code = db.Column(db.String(10), unique=True)
+    
+    # Relationship to SubCounties
+    subcounties = db.relationship('SubCounty', backref='county', lazy=True)
+    
+    def serialize(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'code': self.code
+        }
+
+class SubCounty(BaseModel):
+    __tablename__ = 'subcounties'
+    
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    code = db.Column(db.String(10), unique=True)
+    county_id = db.Column(db.Integer, db.ForeignKey('counties.id'), nullable=False)  # New field
+    
+    # Relationship to Ward
+    wards = db.relationship('Ward', backref='subcounty', lazy=True)
+    
+    def serialize(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'code': self.code,
+            'county_id': self.county_id
+        }
+
+
+
+class Ward(BaseModel):
+    __tablename__ = 'wards'
+   
+    name = db.Column(db.String(100), nullable=False)
+    subcounty_id = db.Column(db.Integer, db.ForeignKey('subcounties.id'), nullable=False)
+
+    def serialize(self):
+        return {
+        'id' : self.id,
+        'name': self.name,
+        'subcounty_id': self.subcounty_id
+        }
+
+class UserAddress(BaseModel, ShopScopedMixin):
+    __tablename__ = 'user_addresses'
+    
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    county_id = db.Column(db.Integer, db.ForeignKey('counties.id'), nullable=False)  
+    subcounty_id = db.Column(db.Integer, db.ForeignKey('subcounties.id'), nullable=False)
+    ward_id = db.Column(db.Integer, db.ForeignKey('wards.id'), nullable=False)
+    
+    # Location details
+    estate = db.Column(db.String(100))
+    landmark = db.Column(db.String(100))
+    building = db.Column(db.String(100))
+    apartment = db.Column(db.String(50))
+    house_number = db.Column(db.String(20))
+    
+    # Additional info
+    notes = db.Column(db.Text)
+    is_primary = db.Column(db.Boolean, default=False, server_default=expression.false())
+    
+    # Relationships
+    user = db.relationship('User', backref=db.backref('addresses', lazy=True))
+    subcounty = db.relationship('SubCounty')
+    ward = db.relationship('Ward')
+    
+    # Indexes
+    __table_args__ = (
+        db.Index('ix_useraddress_user', 'user_id'),
+        db.Index('ix_useraddress_primary', 'user_id', 'is_primary'),
+        db.Index('ix_useraddress_subcounty', 'subcounty_id'),
+        db.Index('ix_useraddress_ward', 'ward_id'),
+    )
+    
+    def serialize(self):
+        return {
+            'id': self.id,
+            'county': self.county.name if self.county else None,
+            'county_id': self.county_id,
+            'subcounty': self.subcounty.name if self.subcounty else None,
+            'subcounty_id': self.subcounty_id,
+            'ward': self.ward.name if self.ward else None,
+            'ward_id': self.ward_id,
+            'estate': self.estate,
+            'landmark': self.landmark,
+            'building': self.building,
+            'apartment': self.apartment,
+            'house_number': self.house_number,
+            'notes': self.notes,
+            'is_primary': self.is_primary,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+    
+    def before_save(self):
+        """Ensure only one primary address per user"""
+        if self.is_primary:
+            # Clear any existing primary address
+            UserAddress.query.filter_by(
+                user_id=self.user_id,
+                is_primary=True
+            ).update({'is_primary': False})
+
+
+

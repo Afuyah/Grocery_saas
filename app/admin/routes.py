@@ -288,4 +288,3 @@ def sales_chart_data(shop_id):
             chart_values=[]
         )
 
-

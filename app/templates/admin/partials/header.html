@@ -47,9 +47,10 @@
             <!-- Right Section -->
             <div class="flex items-center space-x-4">
                 <!-- Tenant Dashboard Link (Conditional) -->
-                {% if current_user.role.name == 'TENANT' %}
+               
+                {% if current_user.is_authenticated and current_user.role.name == 'TENANT' %}
                 <a href="{{ url_for('bhapos.tenant_dashboard', business_id=current_user.business_id) }}"
-                         onclick="window.location.href=this.href; return false;"
+                     onclick="window.location.href=this.href; return false;"
                    class="hidden md:flex items-center px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 group"
                    data-tooltip="Tenant Dashboard">
                     <div class="p-1.5 rounded-md bg-purple-100 dark:bg-purple-900/30 group-hover:bg-purple-200 dark:group-hover:bg-purple-800/40 transition-colors">
@@ -60,6 +61,7 @@
                     <span class="ml-2">My Businesses</span>
                 </a>
                 {% endif %}
+
                 
                
                 <!-- Dark Mode Toggle -->

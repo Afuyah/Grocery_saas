@@ -22,16 +22,19 @@ api_bp = Blueprint('sales_api', __name__, url_prefix='/api/shops/<int:shop_id>')
 
 # HTML View Routes
 sales_bp.add_url_rule(
-    '/sales',
+    '/shops/<int:shop_id>/sales',
     view_func=controllers.SalesController.as_view('sales_screen'),
     methods=['GET']
 )
 
+
 sales_bp.add_url_rule(
     '/transactions',
     view_func=controllers.TransactionController.as_view('transaction_history'),
-    methods=['GET', 'POST']
+    methods=['POST']
 )
+
+
 sales_bp.add_url_rule(
     '/receipts',
     view_func=controllers.ReceiptController.as_view('receipt_generation'),
@@ -66,10 +69,11 @@ api_bp.add_url_rule(
 
 # Transaction API
 api_bp.add_url_rule(
-    '/transactions',
+    '/shops/<int:shop_id>/transactions',
     view_func=controllers.TransactionController.as_view('transaction_create_api'),
-    methods=['POST']
+    methods=['POST', 'GET']
 )
+
 
 # API Receipt endpoint 
 api_bp.add_url_rule(
@@ -78,7 +82,7 @@ api_bp.add_url_rule(
     methods=['GET']
 )
 
-@api_bp.route('/pos-data')
+@api_bp.route('/shops/<int:shop_id>/pos-data')
 @login_required
 @shop_access_required
 @role_required(Role.CASHIER, Role.ADMIN, Role.TENANT)
@@ -90,7 +94,6 @@ def get_pos_data(shop_id):
     except Exception as e:
         current_app.logger.error(f"POS data error: {str(e)}")
         return jsonify({'error': 'Failed to load POS data'}), 500
-
 
 
 @api_bp.route('/shop-info')

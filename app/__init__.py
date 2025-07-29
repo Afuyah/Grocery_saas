@@ -1,5 +1,5 @@
 import logging
-from flask import Flask, render_template, request, g, abort, session, current_app
+from flask import Flask, render_template, request, g, abort, session, current_app, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import SQLAlchemyError
 from flask_migrate import Migrate
@@ -24,7 +24,7 @@ csrf = CSRFProtect()
 # -----------------------
 # Access Control Helpers
 # -----------------------
-from .models import User, Shop
+from .models import User, Shop, SubCounty, Ward, County
 def role_required(*roles):
     def wrapper(view_func):
         @wraps(view_func)
@@ -106,12 +106,12 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-   
     # -----------------------
     # Secure Config
     # -----------------------
     app.config['SESSION_COOKIE_SECURE'] = True
     app.config['TIME_ZONE'] = 'Africa/Nairobi'
+    app.config['POPULATE_LOCATIONS'] = app.debug  # Auto-populate in dev
 
     # -----------------------
     # Logging Setup
@@ -139,14 +139,74 @@ def create_app(config_class=Config):
     # -----------------------
     # Load User
     # -----------------------
-    
-
     @login_manager.user_loader
     def load_user(user_id):
         return User.query.get(int(user_id))
 
     # -----------------------
-    # Global Context Processor
+    # Address Management Setup
+    # -----------------------
+    def populate_location_data():
+        """Initialize county location data (Mombasa complete, Kilifi partial)"""
+        from pathlib import Path
+        import json
+        
+        data_path = Path(app.root_path) / 'data' / 'county_locations.json'
+        
+        try:
+            with open(data_path) as f:
+                data = json.load(f)
+                
+            with db.session.begin_nested():
+                # Process each county
+                for county_data in data["counties"]:
+                    # Create or get county
+                    county = County.query.filter_by(name=county_data["name"]).first()
+                    if not county:
+                        county = County(name=county_data["name"], code=county_data["code"])
+                        db.session.add(county)
+                        db.session.flush()
+                    
+                    # Process subcounties
+                    for sc_data in county_data["subcounties"]:
+                        subcounty = SubCounty.query.filter_by(
+                            name=sc_data["name"], 
+                            county_id=county.id
+                        ).first()
+                        
+                        if not subcounty:
+                            subcounty = SubCounty(
+                                name=sc_data["name"],
+                                code=sc_data["code"],
+                                county_id=county.id
+                            )
+                            db.session.add(subcounty)
+                            db.session.flush()
+                        
+                        # Process wards
+                        for ward_name in sc_data["wards"]:
+                            if not Ward.query.filter_by(
+                                name=ward_name, 
+                                subcounty_id=subcounty.id
+                            ).first():
+                                db.session.add(Ward(
+                                    name=ward_name,
+                                    subcounty_id=subcounty.id
+                                ))
+            
+            db.session.commit()
+            app.logger.info("Location data populated successfully")
+            app.logger.info(f"Mombasa: 6 subcounties, 30 wards")
+            app.logger.info(f"Kilifi: 1 subcounty (Mtwapa), 3 wards")
+            return True
+            
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to populate location data: {str(e)}", exc_info=True)
+            return False
+
+    # -----------------------
+    # Request Handlers
     # -----------------------
     @app.before_request
     def set_tenant_context():
@@ -157,74 +217,24 @@ def create_app(config_class=Config):
             g.business = current_user.business
             g.shop = current_user.shop
 
-            # Try to extract shop_id from URL and store it in session
-            path_parts = request.path.strip('/').split('/')
-            if 'shops' in path_parts:
+            # Store shop_id from URL if present
+            if 'shops' in request.path:
                 try:
-                    shop_index = path_parts.index('shops') + 1
-                    shop_id = int(path_parts[shop_index])
+                    shop_id = int(request.path.split('/shops/')[1].split('/')[0])
                     session['shop_id'] = shop_id
                 except (IndexError, ValueError):
-                    # Invalid or missing shop ID in URL
                     pass
 
-  
+   
 
+    # -----------------------
+    # Template Context
+    # -----------------------
     @app.context_processor
     def inject_now():
-        tz = pytz.timezone(app.config.get('TIME_ZONE', 'Africa/Nairobi'))
+        tz = pytz.timezone(app.config['TIME_ZONE'])
         return {'now': datetime.now(tz)}
 
-
-    # -----------------------
-    # Template Filter
-    # -----------------------
-    @app.template_filter('number_format')
-    def number_format(value, decimals=2):
-        try:
-            return f"{float(value):,.{decimals}f}"
-        except (TypeError, ValueError):
-            return f"{0:.{decimals}f}"
-
-    # -----------------------
-    # Error Pages
-    # -----------------------
-    @app.errorhandler(404)
-    def not_found_error(error):
-        app.logger.warning(f"404 Error at {request.url}")
-        return render_template('404.html'), 404
-
-    @app.errorhandler(500)
-    def internal_error(error):
-        app.logger.error(f"500 Internal Server Error: {error}")
-        return render_template('500.html'), 500
-
-    # -----------------------
-    # Utility Route
-    # -----------------------
-    @app.route('/current_time')
-    def current_time():
-        tz = pytz.timezone(app.config['TIME_ZONE'])
-        now = datetime.now(tz)
-        return f"Current time: {now.strftime('%Y-%m-%d %H:%M:%S')}"
-
-    
-    def format_datetime(value, format='%d %b %Y, %I:%M %p'):
-        """Safely format a datetime object for Jinja2 templates."""
-        if isinstance(value, str):
-            try:
-                # Try to parse ISO 8601 string
-                value = datetime.fromisoformat(value)
-            except ValueError:
-                return value  # fallback to original string if parsing fails
-
-        if isinstance(value, datetime):
-            return value.strftime(format)
-
-        return value  
-
-
-    app.jinja_env.filters['format_datetime'] = format_datetime    
 
     @app.context_processor
     def inject_globals():
@@ -274,25 +284,57 @@ def create_app(config_class=Config):
         return dict(current_shop=current_shop)
 
     
+    # -----------------------
+    # Template Filters
+    # -----------------------
+    @app.template_filter('number_format')
+    def number_format(value, decimals=2):
+        try:
+            return f"{float(value):,.{decimals}f}"
+        except (TypeError, ValueError):
+            return f"{0:.{decimals}f}"
 
-    @app.route('/favicon.ico')
-    def favicon():
-        from flask import send_from_directory
-        import os
-        return send_from_directory(
-            os.path.join(app.root_path, 'static'),
-            'imagesfavicon.ico',
-            mimetype='image/vnd.microsoft.icon'
-        )
-        
-        
+    @app.template_filter('format_datetime')
+    def format_datetime(value, format='%d %b %Y, %I:%M %p'):
+        if isinstance(value, str):
+            try:
+                value = datetime.fromisoformat(value)
+            except ValueError:
+                return value
+        if isinstance(value, datetime):
+            return value.strftime(format)
+        return value
+
+    # -----------------------
+    # Error Handlers
+    # -----------------------
+    @app.errorhandler(404)
+    def not_found_error(error):
+        app.logger.warning(f"404 at {request.url}")
+        return render_template('404.html'), 404
+
+    @app.errorhandler(500)
+    def internal_error(error):
+        app.logger.error(f"500 Error: {error}")
+        return render_template('500.html'), 500
+
+    # -----------------------
+    # Initial Data Population
+    # -----------------------
+    with app.app_context():
+        try:
+            if app.config['POPULATE_LOCATIONS'] and not SubCounty.query.first():
+                if not populate_location_data():
+                    app.logger.warning("Failed to populate initial location data")
+        except Exception as e:
+            app.logger.error(f"Initialization error: {e}")
 
     # -----------------------
     # Register Blueprints
     # -----------------------
     from .auth.routes import auth_bp
     from .inventory.routes import inventory_bp
-    from app.sale import sales_bp, api_bp
+    from .sale import sales_bp, api_bp
     from .home.routes import home_bp
     from .expense.routes import expense_bp
     from .supplier.routes import supplier_bp
@@ -301,16 +343,21 @@ def create_app(config_class=Config):
     from .admin.routes import admin_bp
     from .price.routes import price_bp
 
-    app.register_blueprint(auth_bp, url_prefix='/auth')
-    app.register_blueprint(home_bp)
-    app.register_blueprint(inventory_bp, url_prefix='/inventory')
-    app.register_blueprint(sales_bp)
-    app.register_blueprint(api_bp)
-    app.register_blueprint(expense_bp, url_prefix='/expense')
-    app.register_blueprint(supplier_bp, url_prefix='/supplier')
-    app.register_blueprint(reports_bp, url_prefix='/reports')
-    app.register_blueprint(price_bp, url_prefix='/price')
-    app.register_blueprint(admin_bp, url_prefix='/admin')
-    app.register_blueprint(bhapos_bp, url_prefix='/bhapos')
+    blueprints = [
+        (auth_bp, '/auth'),
+        (home_bp, ''),
+        (inventory_bp, '/inventory'),
+        (sales_bp, ''),
+        (api_bp, '/api'),
+        (expense_bp, '/expense'),
+        (supplier_bp, '/supplier'),
+        (reports_bp, '/reports'),
+        (price_bp, '/price'),
+        (admin_bp, '/admin'),
+        (bhapos_bp, '/bhapos')
+    ]
+
+    for bp, url_prefix in blueprints:
+        app.register_blueprint(bp, url_prefix=url_prefix)
 
     return app

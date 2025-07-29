@@ -226,15 +226,15 @@
               User Management
             </span>
           </a>
-          <a href="#"
-             hx-get="#"
+          <a href="{{ url_for('auth.url_settings_partial', shop_id=current_shop.id) }}"
+             hx-get="{{ url_for('auth.url_settings_partial', shop_id=current_shop.id) }}"
              hx-target="#main-content"
              hx-swap="innerHTML transition:true"
              hx-push-url="true"
              hx-indicator="#htmx-loader"
              class="block px-3 py-2 text-sm rounded-lg text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
             <span class="relative before:content-[''] before:absolute before:-left-2 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-1 before:rounded-full before:bg-gray-400 dark:before:bg-gray-500">
-              Shop Settings
+              Url Settings
             </span>
           </a>
           <a href="#"

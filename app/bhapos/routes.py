@@ -1170,7 +1170,7 @@ def create_shop(business_id):
     return render_template('bhapos/tenants/create_shop.html', form=form, business=business)
 
 
-
+@csrf.exempt
 @bhapos_bp.route('/shop/<int:shop_id>/toggle-registrations', methods=['POST'])
 @login_required
 def toggle_registrations(shop_id):
