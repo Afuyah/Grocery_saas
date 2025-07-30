@@ -16,23 +16,36 @@ class ProductRepository:
         Get all active products available for sale in the shop,
         sorted by total quantity sold in descending order.
         """
+        # Subquery to get total quantity sold per product
+        sale_totals = (
+            db.session.query(
+                CartItem.product_id,
+                func.coalesce(func.sum(CartItem.quantity), 0).label('total_sold')
+            )
+            .join(Sale, CartItem.sale_id == Sale.id)
+            .filter(
+                or_(Sale.shop_id == shop_id, Sale.shop_id == None),
+                or_(Sale.is_deleted == False, Sale.is_deleted == None)
+            )
+            .group_by(CartItem.product_id)
+            .subquery()
+        )
+
+        # Main query: fetch product + join with sale totals
         return (
             db.session.query(Product)
             .join(Category)
-            .outerjoin(CartItem, CartItem.product_id == Product.id)
-            .outerjoin(Sale, CartItem.sale_id == Sale.id)
+            .outerjoin(sale_totals, sale_totals.c.product_id == Product.id)
             .filter(
                 Category.shop_id == shop_id,
                 Category.is_active == True,
                 Product.is_active == True,
-                Product.stock > 0,
-                or_(Sale.shop_id == shop_id, Sale.shop_id == None),
-                or_(Sale.is_deleted == False, Sale.is_deleted == None),
+                Product.stock > 0
             )
-            .group_by(Product.id)
-            .order_by(func.coalesce(func.sum(CartItem.quantity), 0).desc())  # Ensures correct ordering with NULLs
+            .order_by(sale_totals.c.total_sold.desc().nullslast())
             .all()
         )
+
 
     @staticmethod
     def get_for_sale(product_id: int, shop_id: int) -> Optional[Product]:
@@ -208,29 +221,28 @@ class CategoryRepository:
     @staticmethod
     def get_ranked_categories(shop_id: int, limit: int = None) -> List[Category]:
         """
-        Get categories ordered by sales volume (best selling first)
-        Args:
-            shop_id: ID of the shop
-            limit: Optional limit on number of categories to return
-        Returns:
-            List of Category objects ordered by sales volume
+        Get categories ordered by total sales of their products.
         """
         query = db.session.query(Category)\
             .join(Product, Category.products)\
-            .join(SaleItem, Product.sale_items)\
+            .join(CartItem, CartItem.product_id == Product.id)\
+            .join(Sale, CartItem.sale_id == Sale.id)\
             .filter(
-                and_(
-                    Category.shop_id == shop_id,
-                    Category.is_active == True
-                )
+                Category.shop_id == shop_id,
+                Category.is_active == True,
+                Product.is_active == True,
+                Product.stock > 0,
+                Sale.is_deleted == False,
+                Sale.shop_id == shop_id
             )\
             .group_by(Category.id)\
-            .order_by(func.count(SaleItem.id).desc())
-            
+            .order_by(func.sum(CartItem.quantity).desc())
+
         if limit:
             query = query.limit(limit)
-            
+
         return query.all()
+
 
     @staticmethod
     def get_category_with_products(shop_id: int, category_id: int) -> Optional[Category]:
