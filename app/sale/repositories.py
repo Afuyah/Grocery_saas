@@ -7,32 +7,38 @@ from ..models import Product, Category, Sale, CartItem
 from sqlalchemy.orm import contains_eager
 from sqlalchemy.orm import joinedload, with_loader_criteria
 from decimal import Decimal, InvalidOperation
-
+from sqlalchemy import func, desc, and_
+from sqlalchemy.orm import aliased
 class ProductRepository:
 
     @staticmethod
     def get_available_for_sale(shop_id: int) -> List[Product]:
         """
         Get all active products available for sale in the shop,
-        sorted by total quantity sold in descending order.
+        ordered by most sold (descending total cart_items.quantity).
         """
-        return (
+        quantity_sold = func.coalesce(func.sum(CartItem.quantity), 0).label("total_sold")
+
+        query = (
             db.session.query(Product)
-            .join(Category)
+            .join(Category, Product.category_id == Category.id)
             .outerjoin(CartItem, CartItem.product_id == Product.id)
             .outerjoin(Sale, CartItem.sale_id == Sale.id)
             .filter(
-                Category.shop_id == shop_id,
-                Category.is_active == True,
-                Product.is_active == True,
-                Product.stock > 0,
-                or_(Sale.shop_id == shop_id, Sale.shop_id == None),
-                or_(Sale.is_deleted == False, Sale.is_deleted == None),
+                and_(
+                    Category.shop_id == shop_id,
+                    Category.is_active == True,
+                    Product.is_active == True,
+                    Product.stock > 0,
+                    or_(Sale.shop_id == shop_id, Sale.shop_id == None),
+                    or_(Sale.is_deleted == False, Sale.is_deleted == None),
+                )
             )
             .group_by(Product.id)
-            .order_by(func.coalesce(func.sum(CartItem.quantity), 0).desc())  # Ensures correct ordering with NULLs
-            .all()
+            .order_by(desc(quantity_sold))
         )
+
+        return query.all()
 
     @staticmethod
     def get_for_sale(product_id: int, shop_id: int) -> Optional[Product]:
