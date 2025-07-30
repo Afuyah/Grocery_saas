@@ -355,7 +355,7 @@ def new_product(shop_id):
             'barcode': request.form.get('barcode', '').strip() or None,
             'sku': request.form.get('sku', '').strip() or None,
             'image_url': request.form.get('image_url', '').strip(),
-            'is_active': request.form.get('is_active', 'true').lower() == 'true',
+            'is_active':True,
             'is_featured': request.form.get('is_featured', 'false').lower() == 'true',
             'shop_id': shop.id
         }

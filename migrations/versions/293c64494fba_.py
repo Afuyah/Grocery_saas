@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: b981d4efec6e
+Revision ID: 293c64494fba
 Revises: 
-Create Date: 2025-07-26 13:12:49.537279
+Create Date: 2025-07-29 20:54:29.203462
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 import sqlalchemy_utils
 
 # revision identifiers, used by Alembic.
-revision = 'b981d4efec6e'
+revision = '293c64494fba'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -51,7 +51,7 @@ def upgrade():
     sa.Column('approval_notes', sa.Text(), nullable=True),
     sa.Column('logo_url', sa.String(length=255), nullable=True),
     sa.Column('banner_url', sa.String(length=255), nullable=True),
-    sa.ForeignKeyConstraint(['approved_by_id'], ['users.id'], ),
+  
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email'),
     sa.UniqueConstraint('registration_number'),
@@ -63,6 +63,18 @@ def upgrade():
     op.create_index(op.f('ix_businesses_is_deleted'), 'businesses', ['is_deleted'], unique=False)
     op.create_index(op.f('ix_businesses_name'), 'businesses', ['name'], unique=True)
     op.create_index(op.f('ix_businesses_status'), 'businesses', ['status'], unique=False)
+    op.create_table('counties',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), server_default=sa.text('false'), nullable=True),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('code', sa.String(length=10), nullable=True),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('code'),
+    sa.UniqueConstraint('name')
+    )
+    op.create_index(op.f('ix_counties_is_deleted'), 'counties', ['is_deleted'], unique=False)
     op.create_table('shops',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
@@ -78,11 +90,13 @@ def upgrade():
     sa.Column('logo_url', sa.String(length=255), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('type', sa.Enum('pos', 'pop', name='shoptype'), nullable=True),
+    sa.Column('short_url_code', sa.String(length=10), nullable=True),
     sa.Column('business_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['business_id'], ['businesses.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email'),
-    sa.UniqueConstraint('phone')
+    sa.UniqueConstraint('phone'),
+    sa.UniqueConstraint('short_url_code')
     )
     op.create_index('ix_shops_business_id', 'shops', ['business_id'], unique=False)
     op.create_index('ix_shops_is_active', 'shops', ['is_active'], unique=False)
@@ -167,6 +181,20 @@ def upgrade():
     op.create_index(op.f('ix_register_sessions_is_deleted'), 'register_sessions', ['is_deleted'], unique=False)
     op.create_index('ix_register_shop_closed', 'register_sessions', ['shop_id', 'closed_at'], unique=False)
     op.create_index('ix_register_shop_date', 'register_sessions', ['shop_id', 'opened_at'], unique=False)
+    op.create_table('subcounties',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), server_default=sa.text('false'), nullable=True),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('code', sa.String(length=10), nullable=True),
+    sa.Column('county_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['county_id'], ['counties.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('code'),
+    sa.UniqueConstraint('name')
+    )
+    op.create_index(op.f('ix_subcounties_is_deleted'), 'subcounties', ['is_deleted'], unique=False)
     op.create_table('suppliers',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
@@ -271,6 +299,17 @@ def upgrade():
     op.create_index('ix_sale_user', 'sales', ['user_id'], unique=False)
     op.create_index(op.f('ix_sales_date'), 'sales', ['date'], unique=False)
     op.create_index(op.f('ix_sales_is_deleted'), 'sales', ['is_deleted'], unique=False)
+    op.create_table('wards',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), server_default=sa.text('false'), nullable=True),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('subcounty_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['subcounty_id'], ['subcounties.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_wards_is_deleted'), 'wards', ['is_deleted'], unique=False)
     op.create_table('cart_items',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
@@ -355,11 +394,46 @@ def upgrade():
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_stock_logs_is_deleted'), 'stock_logs', ['is_deleted'], unique=False)
+    op.create_table('user_addresses',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), server_default=sa.text('false'), nullable=True),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('county_id', sa.Integer(), nullable=False),
+    sa.Column('subcounty_id', sa.Integer(), nullable=False),
+    sa.Column('ward_id', sa.Integer(), nullable=False),
+    sa.Column('estate', sa.String(length=100), nullable=True),
+    sa.Column('landmark', sa.String(length=100), nullable=True),
+    sa.Column('building', sa.String(length=100), nullable=True),
+    sa.Column('apartment', sa.String(length=50), nullable=True),
+    sa.Column('house_number', sa.String(length=20), nullable=True),
+    sa.Column('notes', sa.Text(), nullable=True),
+    sa.Column('is_primary', sa.Boolean(), server_default=sa.text('false'), nullable=True),
+    sa.Column('shop_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['county_id'], ['counties.id'], ),
+    sa.ForeignKeyConstraint(['shop_id'], ['shops.id'], ),
+    sa.ForeignKeyConstraint(['subcounty_id'], ['subcounties.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['ward_id'], ['wards.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_user_addresses_is_deleted'), 'user_addresses', ['is_deleted'], unique=False)
+    op.create_index('ix_useraddress_primary', 'user_addresses', ['user_id', 'is_primary'], unique=False)
+    op.create_index('ix_useraddress_subcounty', 'user_addresses', ['subcounty_id'], unique=False)
+    op.create_index('ix_useraddress_user', 'user_addresses', ['user_id'], unique=False)
+    op.create_index('ix_useraddress_ward', 'user_addresses', ['ward_id'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade():
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index('ix_useraddress_ward', table_name='user_addresses')
+    op.drop_index('ix_useraddress_user', table_name='user_addresses')
+    op.drop_index('ix_useraddress_subcounty', table_name='user_addresses')
+    op.drop_index('ix_useraddress_primary', table_name='user_addresses')
+    op.drop_index(op.f('ix_user_addresses_is_deleted'), table_name='user_addresses')
+    op.drop_table('user_addresses')
     op.drop_index(op.f('ix_stock_logs_is_deleted'), table_name='stock_logs')
     op.drop_table('stock_logs')
     op.drop_index(op.f('ix_price_changes_is_deleted'), table_name='price_changes')
@@ -376,6 +450,8 @@ def downgrade():
     op.drop_index(op.f('ix_cart_items_product_id'), table_name='cart_items')
     op.drop_index(op.f('ix_cart_items_is_deleted'), table_name='cart_items')
     op.drop_table('cart_items')
+    op.drop_index(op.f('ix_wards_is_deleted'), table_name='wards')
+    op.drop_table('wards')
     op.drop_index(op.f('ix_sales_is_deleted'), table_name='sales')
     op.drop_index(op.f('ix_sales_date'), table_name='sales')
     op.drop_index('ix_sale_user', table_name='sales')
@@ -406,6 +482,8 @@ def downgrade():
     op.drop_table('taxes')
     op.drop_index(op.f('ix_suppliers_is_deleted'), table_name='suppliers')
     op.drop_table('suppliers')
+    op.drop_index(op.f('ix_subcounties_is_deleted'), table_name='subcounties')
+    op.drop_table('subcounties')
     op.drop_index('ix_register_shop_date', table_name='register_sessions')
     op.drop_index('ix_register_shop_closed', table_name='register_sessions')
     op.drop_index(op.f('ix_register_sessions_is_deleted'), table_name='register_sessions')
@@ -432,6 +510,8 @@ def downgrade():
     op.drop_index('ix_shops_is_active', table_name='shops')
     op.drop_index('ix_shops_business_id', table_name='shops')
     op.drop_table('shops')
+    op.drop_index(op.f('ix_counties_is_deleted'), table_name='counties')
+    op.drop_table('counties')
     op.drop_index(op.f('ix_businesses_status'), table_name='businesses')
     op.drop_index(op.f('ix_businesses_name'), table_name='businesses')
     op.drop_index(op.f('ix_businesses_is_deleted'), table_name='businesses')

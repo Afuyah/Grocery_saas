@@ -12,7 +12,7 @@
                      alt="Modern shop interior" 
                      class="w-full h-full object-cover transition-all duration-700 group-hover:scale-105">
                 <div class="absolute bottom-0 left-0 right-0 z-20 p-6 text-white space-y-2">
-                    <h3 class="text-3xl font-bold animate-fade-in-up">Welcome to {{ shop.name if shop else 'Bhapos' }}</h3>
+                    <h3 class="text-3xl font-bold animate-fade-in-up"> {{ shop.name if shop else 'Bhapos' }}</h3>
                     <p class="text-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">Join thousands of happy customers</p>
                     <div class="flex space-x-2 mt-4">
                         <span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
@@ -218,7 +218,7 @@
                     <div class="mt-6 text-center text-sm">
                         <p class="text-gray-600 dark:text-gray-400">
                             Already have an account? 
-                            <a href="{{ url_for('auth.login', next=url_for('sales.sales_screen', shop_id=shop.id)) }}" 
+                            <a href="{{ url_for('home.index', next=url_for('sales.sales_screen', shop_id=shop.id)) }}" 
                                class="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors">
                                 Sign in here
                             </a>

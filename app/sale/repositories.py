@@ -9,33 +9,64 @@ from sqlalchemy.orm import joinedload, with_loader_criteria
 from decimal import Decimal, InvalidOperation
 
 class ProductRepository:
+
     @staticmethod
     def get_available_for_sale(shop_id: int) -> List[Product]:
         """
-        Get all active products available for sale in the shop
-        Args:
-            shop_id: ID of the shop
-        Returns:
-            List of available Product objects
+        Get all active products available for sale in the shop,
+        sorted by total quantity sold in descending order.
         """
-        return db.session.query(Product).join(Category).filter(
-            and_(
+        return (
+            db.session.query(Product)
+            .join(Category)
+            .outerjoin(CartItem, CartItem.product_id == Product.id)
+            .outerjoin(Sale, CartItem.sale_id == Sale.id)
+            .filter(
                 Category.shop_id == shop_id,
                 Category.is_active == True,
                 Product.is_active == True,
-                Product.stock > 0
+                Product.stock > 0,
+                or_(Sale.shop_id == shop_id, Sale.shop_id == None),
+                or_(Sale.is_deleted == False, Sale.is_deleted == None),
             )
-        ).order_by(Product.name).all()
-
+            .group_by(Product.id)
+            .order_by(func.coalesce(func.sum(CartItem.quantity), 0).desc())  # Ensures correct ordering with NULLs
+            .all()
+        )
 
     @staticmethod
     def get_for_sale(product_id: int, shop_id: int) -> Optional[Product]:
+        """
+        Fetch a single product if it's active, belongs to the shop, and is in stock.
+        """
         return Product.query.filter_by(
             id=product_id,
             shop_id=shop_id,
             is_active=True
         ).filter(Product.stock > 0).first()
 
+    @staticmethod
+    def get_most_sold_products(shop_id: int, limit: int = 20) -> List[Product]:
+        """
+        Return the top 'limit' most sold products in a shop, sorted by quantity sold.
+        Only includes products that are active and in stock.
+        """
+        return (
+            db.session.query(Product)
+            .join(CartItem, Product.id == CartItem.product_id)
+            .join(Sale, CartItem.sale_id == Sale.id)
+            .filter(
+                Product.shop_id == shop_id,
+                Product.is_active == True,
+                Product.stock > 0,
+                Sale.shop_id == shop_id,
+                Sale.is_deleted == False,
+            )
+            .group_by(Product.id)
+            .order_by(func.sum(CartItem.quantity).desc())
+            .limit(limit)
+            .all()
+        )
 
         
     @staticmethod
@@ -177,29 +208,28 @@ class CategoryRepository:
     @staticmethod
     def get_ranked_categories(shop_id: int, limit: int = None) -> List[Category]:
         """
-        Get categories ordered by sales volume (best selling first)
-        Args:
-            shop_id: ID of the shop
-            limit: Optional limit on number of categories to return
-        Returns:
-            List of Category objects ordered by sales volume
+        Get categories ordered by total sales of their products.
         """
         query = db.session.query(Category)\
             .join(Product, Category.products)\
-            .join(SaleItem, Product.sale_items)\
+            .join(CartItem, CartItem.product_id == Product.id)\
+            .join(Sale, CartItem.sale_id == Sale.id)\
             .filter(
-                and_(
-                    Category.shop_id == shop_id,
-                    Category.is_active == True
-                )
+                Category.shop_id == shop_id,
+                Category.is_active == True,
+                Product.is_active == True,
+                Product.stock > 0,
+                Sale.is_deleted == False,
+                Sale.shop_id == shop_id
             )\
             .group_by(Category.id)\
-            .order_by(func.count(SaleItem.id).desc())
-            
+            .order_by(func.sum(CartItem.quantity).desc())
+
         if limit:
             query = query.limit(limit)
-            
+
         return query.all()
+
 
     @staticmethod
     def get_category_with_products(shop_id: int, category_id: int) -> Optional[Category]:

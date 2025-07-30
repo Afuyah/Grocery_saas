@@ -225,7 +225,31 @@ def create_app(config_class=Config):
                 except (IndexError, ValueError):
                     pass
 
-   
+    @app.before_request
+    def enforce_address_completion():
+        if current_user.is_authenticated:
+            # Only enforce for users who actually need an address
+            if current_user.needs_address() and not current_user.has_address:
+
+                # Exempt specific endpoints (e.g., setting address, auth routes, static)
+                exempt_routes = {
+                    'auth.set_address',
+                    'auth.logout',
+                    'home.index',
+                    'auth.register',
+                    'static'
+                }
+
+                # Also allow any endpoint explicitly starting with 'static' or 'auth.'
+                if request.endpoint and (
+                    request.endpoint in exempt_routes
+                    or request.endpoint.startswith('auth.')
+                    or request.endpoint.startswith('static')
+                ):
+                    return  # Allow these routes
+
+                # Otherwise, redirect to set address
+                return redirect(url_for('auth.set_address', next=request.url))
 
     # -----------------------
     # Template Context

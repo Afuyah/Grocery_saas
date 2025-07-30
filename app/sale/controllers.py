@@ -47,15 +47,16 @@ class ProductAPIController(MethodView):
 
     @role_required(Role.CASHIER, Role.ADMIN, Role.TENANT)
     def get(self, shop_id):
-        """API: Return all available products"""
+        """API: Return products sorted by most sold"""
         try:
-            products = ProductService.get_available_for_sale(shop_id)
+            products = ProductService.get_most_sold_products(shop_id)
             return jsonify(products)
         except Exception as e:
             logger.error(f"Failed to load products: {str(e)}", exc_info=True)
             return jsonify({'error': 'Failed to load products'}), 500
 
 
+            
 class ProductSearchAPIController(MethodView):
     decorators = [login_required, shop_access_required, csrf.exempt]
 

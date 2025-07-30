@@ -99,6 +99,7 @@ def _determine_redirect_url(user, next_param=None):
     return redirect_url
 
 
+
 def create_cashier_user(data, shop):
     """Create a new cashier user with validated data"""
     return User(
@@ -112,53 +113,75 @@ def create_cashier_user(data, shop):
         role=Role.CASHIER
     ).set_password(data['password'])
 
+
 def handle_registration_success(user, shop):
     """Handle successful registration"""
     login_user(user)
     user.record_login()
     db.session.commit()
-    
-    redirect_url = _determine_redirect_url(user)
-    
-    if request.is_json:
-        return jsonify({
-            'success': True,
-            'redirect': redirect_url,
-            'user': user.serialize(),
-            'requires_address': not user.has_address and user.needs_address()
-        })
-    
-    flash('Registration successful!', 'success')
-    return Response(headers={"HX-Redirect": redirect_url})
+
+    flash('Registration successful! Welcome.', 'success')
+    return redirect(_determine_redirect_url(user))
+
 
 def handle_registration_error(message, shop, form=None):
     """Handle registration errors"""
     db.session.rollback()
-    
-    if request.is_json:
-        return jsonify({
-            'success': False,
-            'error': message
-        }), 400
-    
-    flash(message, 'error')
-    return render_htmx(
+
+    if isinstance(message, dict):
+        for field_errors in message.values():
+            for err in field_errors:
+                flash(err, 'error')
+    else:
+        flash(message, 'error')
+
+    return render_template(
         'auth/register.html',
         shop=shop,
-        form=form or RegistrationForm(),
-        errors=message if isinstance(message, dict) else None
+        form=form or RegistrationForm()
     )
 
-# ======================
-# ROUTES
-# ======================
+
+def _determine_redirect_url(user, next_url=None):
+    """Determine redirect URL based on user role"""
+    if next_url and is_safe_url(next_url):
+        return next_url
+    if user.is_superadmin():
+        return url_for('bhapos.superadmin_dashboard')
+    elif user.is_tenant() and user.business_id:
+        return url_for('bhapos.tenant_dashboard', business_id=user.business_id)
+    elif (user.is_admin() or user.is_cashier()) and user.shop_id:
+        return url_for('sales.sales_screen', shop_id=user.shop_id)
+    return url_for('home.index')
+
+
+def _handle_login_error(message, is_json, field=None):
+    """Handle login errors"""
+    logger.warning(f"Login error: {message}")
+    if is_json:
+        return jsonify({'success': False, 'error': message, 'field': field}), 400
+
+    flash(message, 'error')
+    return redirect(url_for('auth.login'))
+
+
+def _handle_login_success(redirect_url, user, is_json):
+    """Handle successful login"""
+    logger.info(f"Redirecting user {user.id} to {redirect_url}")
+    if is_json:
+        return jsonify({
+            'success': True,
+            'redirect': redirect_url,
+            'user': user.serialize()
+        })
+    return redirect(redirect_url)
+
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
-@csrf.exempt
 def login():
     """Handle user login"""
     logger.info("Login request received")
-    
+
     if request.method == 'POST':
         # Extract credentials
         if request.is_json:
@@ -169,35 +192,26 @@ def login():
             username = request.form.get('username')
             password = request.form.get('password')
 
-        # Validate input
         if not username or not password:
-            return _handle_login_error(
-                "Username and password are required", 
-                request.is_json, 
-                field='username'
-            )
+            return _handle_login_error("Username and password are required", request.is_json, 'username')
 
         username = username.strip().lower()
         user = User.query.filter_by(username=username).first()
 
-        # Authentication checks
         if not user or not user.check_password(password):
-            field = 'username' if not user else 'password'
-            return _handle_login_error("Invalid credentials", request.is_json, field=field)
+            return _handle_login_error("Invalid credentials", request.is_json, 'password')
 
         if user.is_deleted:
             return _handle_login_error("Account is disabled", request.is_json)
 
-        # Successful login
         login_user(user, remember=True)
-        logger.info(f"User {username} logged in successfully")
-        
+        logger.info(f"User {user.username} logged in successfully")
+
         redirect_url = _determine_redirect_url(user, request.args.get('next'))
         return _handle_login_success(redirect_url, user, request.is_json)
 
-    # GET request - show login form
-    return redirect(url_for('home.index', mode='login', next=request.args.get('next')))
-
+    # GET request: show login form
+    return render_template('auth/login.html')
 
 
 @auth_bp.route('/register/<shop_slug>', methods=['GET', 'POST'])
@@ -205,10 +219,20 @@ def register_user(shop_slug):
     """Handle user registration"""
     shop = Shop.query.filter_by(slug=shop_slug, is_active=True, is_deleted=False).first()
     if not shop:
-        return handle_registration_error('Invalid or inactive shop', None)
+        flash('Invalid or inactive shop.', 'error')
+        return redirect(url_for('home.index'))
 
     if not shop.allow_registrations:
-        return handle_registration_error('Registrations are disabled for this shop', shop)
+        flash('Registrations are disabled for this shop.', 'error')
+        return redirect(url_for('home.index'))
+
+    if request.method == 'GET':
+        logger.debug(f"Rendering registration form for shop: {shop_slug}")
+        return render_template(
+            'auth/register.html',
+            shop=shop,
+            form=RegistrationForm()
+        )
 
     form = RegistrationForm(request.form)
     if not form.validate():
@@ -221,10 +245,10 @@ def register_user(shop_slug):
         return handle_registration_success(user, shop)
 
     except IntegrityError:
-        return handle_registration_error('Username or email already exists', shop, form)
+        return handle_registration_error('Username or email already exists.', shop, form)
     except Exception as e:
-        logger.exception("Registration error")
-        return handle_registration_error('Something went wrong', shop, form)
+        logger.exception(f"Registration error: {str(e)}")
+        return handle_registration_error('Something went wrong. Please try again.', shop, form)
 
 
 @auth_bp.route('/api/shops/<int:shop_id>/registration-link', methods=['GET'])
@@ -244,7 +268,7 @@ def get_registration_link(shop_id):
         return jsonify({'success': False, 'error': 'Not authorized.'}), 403
 
     # Permanent registration URL
-    registration_url = url_for('auth.show_register_page', shop_slug=shop.slug, _external=True)
+    registration_url = url_for('auth.register_user', shop_slug=shop.slug, _external=True)
 
     # Temporary short URL using random short code (24hr cache)
     short_code = generate_short_code()
@@ -265,7 +289,6 @@ def get_registration_link(shop_id):
             'slug': shop.slug
         }
     })
-
 
 @csrf.exempt
 @auth_bp.route("/shops/<int:shop_id>/generate-short-url", methods=["POST"])
@@ -443,11 +466,6 @@ def get_wards(subcounty_id):
         current_app.logger.error(f"Error fetching wards: {str(e)}")
         return jsonify({'error': str(e)}), 500   
 
-
-
-# ======================
-# UTILITY ROUTES
-# ======================
 
 
 
