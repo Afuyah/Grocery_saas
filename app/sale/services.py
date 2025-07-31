@@ -290,12 +290,13 @@ class ProductService:
                 'category_id': p.category.id,
                 'stock': p.stock,
                 'barcode': p.barcode or '',
-                'unit': p.unit,
+                'unit': p.unit.name if hasattr(p.unit, "name") else p.unit,
                 'minimum_unit': p.minimum_unit or 1,
                 'is_combo': bool(p.combination_size and p.combination_size > 1),
                 'combination_price': float(p.combination_price) if p.combination_price and p.combination_size and p.combination_size > 1 else None,
                 'combination_size': p.combination_size if p.combination_size and p.combination_size > 1 else None,
             } for p in results]
+
 
         except Exception as e:
             logger.error(f"Product search failed for shop {shop_id}: {str(e)}")
@@ -315,7 +316,7 @@ class ProductService:
                 'category_id': p.category.id,
                 'stock': p.stock,
                 'is_low_stock': p.stock < 10,
-                'unit': p.unit,
+                'unit': p.unit.value if p.unit else None,
                 'minimum_unit': p.minimum_unit or 1,
                 'is_combo': bool(p.combination_size and p.combination_size > 1),
                 'combination_price': float(p.combination_price) if p.combination_price and p.combination_size and p.combination_size > 1 else None,
@@ -325,6 +326,7 @@ class ProductService:
         except Exception as e:
             logger.error(f"Failed to get products for shop {shop_id}: {str(e)}")
             return []
+
 
 
 

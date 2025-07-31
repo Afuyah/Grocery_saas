@@ -33,9 +33,10 @@ class CartItemSchema(Schema):
 class CheckoutSchema(Schema):
     payment_method = fields.String(
         required=True,
-        validate=validate.OneOf(['cash', 'card', 'credit', 'mobile']),
+        validate=validate.OneOf(['pay_on_delivery', 'mobile']),
         metadata={"description": "Payment method used for the transaction"}
     )
+    
     customer_name = fields.String(
         allow_none=True,
         metadata={"description": "Optional customer name for the sale"}
@@ -143,10 +144,11 @@ class SaleItemSchema(Schema):
 
 class SaleSchema(Schema):
     id = fields.Int(dump_only=True)
-    
+
     payment_method = fields.Str(
         required=True,
-        validate=validate.OneOf(['cash', 'mpesa', 'card', 'other'])
+        validate=validate.OneOf(['pay_on_delivery', 'mobile']),
+        metadata={"description": "Payment method used for the transaction"}
     )
     customer_name = fields.Str(allow_none=True)
     items = fields.Nested(SaleItemSchema, many=True, required=True)

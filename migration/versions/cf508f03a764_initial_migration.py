@@ -1,8 +1,8 @@
-"""empty message
+"""initial migration
 
-Revision ID: ff942479b280
+Revision ID: cf508f03a764
 Revises: 
-Create Date: 2025-07-28 16:01:27.436622
+Create Date: 2025-07-31 09:19:25.199120
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 import sqlalchemy_utils
 
 # revision identifiers, used by Alembic.
-revision = 'ff942479b280'
+revision = 'cf508f03a764'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -51,7 +51,7 @@ def upgrade():
     sa.Column('approval_notes', sa.Text(), nullable=True),
     sa.Column('logo_url', sa.String(length=255), nullable=True),
     sa.Column('banner_url', sa.String(length=255), nullable=True),
-    
+   
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email'),
     sa.UniqueConstraint('registration_number'),
@@ -280,6 +280,10 @@ def upgrade():
     sa.Column('payment_method', sa.String(length=50), nullable=False),
     sa.Column('customer_phone', sa.String(length=20), nullable=True),
     sa.Column('customer_name', sa.String(length=200), nullable=True),
+    sa.Column('notes', sa.Text(), nullable=True),
+    sa.Column('status', sa.Enum('PENDING', 'CONFIRMED', 'DISPATCHED', 'DELIVERED', 'COMPLETED', 'CANCELLED', name='sale_status'), nullable=False),
+    sa.Column('is_paid', sa.Boolean(), nullable=True),
+    sa.Column('expected_delivery_date', sa.DateTime(), nullable=True),
     sa.Column('subtotal', sa.Float(), nullable=True),
     sa.Column('tax', sa.Float(), nullable=True),
     sa.Column('register_session_id', sa.Integer(), nullable=True),
@@ -295,10 +299,13 @@ def upgrade():
     op.create_index('ix_sale_session', 'sales', ['register_session_id'], unique=False)
     op.create_index('ix_sale_shop_date', 'sales', ['shop_id', 'date'], unique=False)
     op.create_index('ix_sale_shop_pay_date', 'sales', ['shop_id', 'payment_method', 'date'], unique=False)
+    op.create_index('ix_sale_status_paid', 'sales', ['status', 'is_paid'], unique=False)
     op.create_index('ix_sale_total', 'sales', ['total'], unique=False)
     op.create_index('ix_sale_user', 'sales', ['user_id'], unique=False)
     op.create_index(op.f('ix_sales_date'), 'sales', ['date'], unique=False)
     op.create_index(op.f('ix_sales_is_deleted'), 'sales', ['is_deleted'], unique=False)
+    op.create_index(op.f('ix_sales_is_paid'), 'sales', ['is_paid'], unique=False)
+    op.create_index(op.f('ix_sales_status'), 'sales', ['status'], unique=False)
     op.create_table('wards',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=True),
@@ -452,10 +459,13 @@ def downgrade():
     op.drop_table('cart_items')
     op.drop_index(op.f('ix_wards_is_deleted'), table_name='wards')
     op.drop_table('wards')
+    op.drop_index(op.f('ix_sales_status'), table_name='sales')
+    op.drop_index(op.f('ix_sales_is_paid'), table_name='sales')
     op.drop_index(op.f('ix_sales_is_deleted'), table_name='sales')
     op.drop_index(op.f('ix_sales_date'), table_name='sales')
     op.drop_index('ix_sale_user', table_name='sales')
     op.drop_index('ix_sale_total', table_name='sales')
+    op.drop_index('ix_sale_status_paid', table_name='sales')
     op.drop_index('ix_sale_shop_pay_date', table_name='sales')
     op.drop_index('ix_sale_shop_date', table_name='sales')
     op.drop_index('ix_sale_session', table_name='sales')

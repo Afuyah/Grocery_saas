@@ -42,16 +42,17 @@ sales_bp.add_url_rule(
 )
 
 api_bp.add_url_rule(
-    '/products',
+    '/shops/<int:shop_id>/products',
     view_func=ProductAPIController.as_view('products_api'),
     methods=['GET']
 )
 
 api_bp.add_url_rule(
-    '/products/search',
+    '/shops/<int:shop_id>/products/search',
     view_func=ProductSearchAPIController.as_view('products_search_api'),
     methods=['POST']
 )
+
 
 api_bp.add_url_rule(
     '/categories',
@@ -62,10 +63,12 @@ api_bp.add_url_rule(
 
 
 api_bp.add_url_rule(
-    '/transactions/recent',
+    '/shops/<int:shop_id>/transactions/recent',
     view_func=controllers.TransactionController.as_view('recent_transactions_api'),
     methods=['GET']
 )
+
+
 
 # Transaction API
 api_bp.add_url_rule(

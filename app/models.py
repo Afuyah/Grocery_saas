@@ -33,9 +33,9 @@ class ShopType(enum.Enum):
 class AdjustmentType(enum.Enum):
     addition = "addition"  # Adding stock
     reduction = "reduction"
-    returned = "returned"  # Stock returned from sales
-    inventory_adjustment = "inventory_adjustment"  # Adjustments made during inventory counts
-    damage = "damage"  # Stock that is damaged and unsellable
+    returned = "returned"  
+    inventory_adjustment = "inventory_adjustment"  
+    damage = "damage" 
 
     def __str__(self):
         return self.value.capitalize() 
@@ -55,6 +55,18 @@ class Role(Enum):
     TENANT = 'tenant'
     ADMIN = 'admin'
     CASHIER = 'cashier'
+
+
+class SaleStatus(Enum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    DISPATCHED = "dispatched"
+    DELIVERED = "delivered"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+
 
 
 class BaseModel(db.Model):
@@ -770,8 +782,6 @@ class Category(BaseModel, ShopScopedMixin):
     def __repr__(self):
         return f'<Category {self.id}: {self.name}>'
 
-
-
 class Sale(BaseModel, ShopScopedMixin):
     __tablename__ = 'sales'
 
@@ -781,15 +791,20 @@ class Sale(BaseModel, ShopScopedMixin):
     payment_method = db.Column(String(50), nullable=False)
     customer_phone = db.Column(String(20), nullable=True)
     customer_name = db.Column(String(200), nullable=True)
+    notes = db.Column(Text, nullable=True)
+    status = db.Column(SQLAlchemyEnum(SaleStatus, name="sale_status"), default=SaleStatus.PENDING, index=True, nullable=False)
+
+    is_paid = db.Column(db.Boolean, default=False, index=True)
+    expected_delivery_date = db.Column(DateTime, nullable=True)
+
     subtotal = db.Column(Float, nullable=True)
     tax = db.Column(Float, nullable=True)
     register_session_id = db.Column(Integer, db.ForeignKey('register_sessions.id'), nullable=True)
+    user_id = db.Column(Integer, db.ForeignKey('users.id'))
 
-    user_id = db.Column(Integer, db.ForeignKey('users.id'))  # Associate with User
-    
     # Relationships
     cart_items = relationship('CartItem', back_populates='sale')
-    user = relationship('User')  
+    user = relationship('User')
 
     __table_args__ = (
         db.Index('ix_sale_total', 'total'),
@@ -799,15 +814,15 @@ class Sale(BaseModel, ShopScopedMixin):
         db.Index('ix_sale_user', 'user_id'),
         db.Index('ix_sale_payment', 'payment_method'),
         db.Index('ix_sale_shop_pay_date', 'shop_id', 'payment_method', 'date'),
+        db.Index('ix_sale_status_paid', 'status', 'is_paid'),
     )
 
     @validates('payment_method')
     def validate_payment_method(self, key, value):
-        allowed_methods = ['cash', 'card', 'mobile', 'credit']
+        allowed_methods = ['pay_on_delivery', 'mobile']
         if value not in allowed_methods:
             raise ValueError(f"Invalid payment method: {value}")
         return value
-
 
     def serialize(self):
         """Serialize sale object for API response."""
@@ -817,7 +832,12 @@ class Sale(BaseModel, ShopScopedMixin):
             'total': self.total,
             'profit': self.profit,
             'payment_method': self.payment_method,
+            'status': self.status.value,
+            'is_paid': self.is_paid,
             'customer_name': self.customer_name,
+            'customer_phone': self.customer_phone,
+            'expected_delivery_date': self.expected_delivery_date.strftime("%Y-%m-%d") if self.expected_delivery_date else None,
+            'notes': self.notes,
             'user': {
                 'id': self.user.id if self.user else None,
                 'username': self.user.username if self.user else None,

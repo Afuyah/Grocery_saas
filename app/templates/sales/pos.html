@@ -49,7 +49,7 @@
                     </a>
                 </li>
                 <li>
-                    <a href="#" class="w-full flex items-center space-x-3 p-3 rounded-xl hover:bg-gray-700 transition-all group" title="Order History" aria-label="My Orders">
+                    <a href="#" onclick="loadRecentTransactionsModal(); document.getElementById('recent-transactions-modal').classList.remove('hidden')"  class="w-full flex items-center space-x-3 p-3 rounded-xl hover:bg-gray-700 transition-all group" title="Order History" aria-label="My Orders">
                         <div class="w-10 h-10 rounded-full bg-gray-700 group-hover:bg-amber-500/30 flex items-center justify-center text-amber-400 transition-colors">
                             <i class="fas fa-history text-base"></i> <!-- Changed icon -->
                         </div>
@@ -282,31 +282,34 @@ document.addEventListener('click', (e) => {
                             
                             <!-- Payment Methods - Improved Design -->
                             <div class="mb-4">
-                                <label class="block text-gray-700 dark:text-gray-200 text-sm font-semibold mb-2">Payment Method</label>
-                                <div class="grid grid-cols-3 gap-3" id="payment-methods">
-                                    <button class="payment-method flex flex-col items-center justify-center py-3 border rounded-lg transition-all shadow-sm hover:shadow-md group" data-method="cash" aria-label="Pay with Cash">
-                                        <div class="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-500 dark:text-amber-400 mb-2 group-hover:bg-amber-200 dark:group-hover:bg-amber-900/50 transition-colors">
-                                            <i class="fas fa-money-bill-wave text-lg"></i>
-                                        </div>
-                                        <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">Cash</span>
-                                        <div class="mt-1 w-4 h-1 bg-transparent rounded-full group-hover:bg-amber-500 transition-colors"></div>
-                                    </button>
-                                    <button class="payment-method flex flex-col items-center justify-center py-3 border rounded-lg transition-all shadow-sm hover:shadow-md group" data-method="card" aria-label="Pay with Card">
-                                        <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-500 dark:text-blue-400 mb-2 group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition-colors">
-                                            <i class="fas fa-credit-card text-lg"></i>
-                                        </div>
-                                        <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">Card</span>
-                                        <div class="mt-1 w-4 h-1 bg-transparent rounded-full group-hover:bg-blue-500 transition-colors"></div>
-                                    </button>
-                                    <button class="payment-method flex flex-col items-center justify-center py-3 border rounded-lg transition-all shadow-sm hover:shadow-md group" data-method="mobile" aria-label="Pay with M-Pesa">
-                                        <div class="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-500 dark:text-green-400 mb-2 group-hover:bg-green-200 dark:group-hover:bg-green-900/50 transition-colors">
-                                            <i class="fas fa-mobile-screen-button text-lg"></i>
-                                        </div>
-                                        <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">M-Pesa</span>
-                                        <div class="mt-1 w-4 h-1 bg-transparent rounded-full group-hover:bg-green-500 transition-colors"></div>
-                                    </button>
-                                </div>
-                            </div>
+    <label class="block text-gray-700 dark:text-gray-200 text-sm font-semibold mb-2">Payment Method</label>
+    <div class="grid grid-cols-2 gap-3" id="payment-methods">
+        <!-- Pay on Delivery -->
+        <button class="payment-method flex flex-col items-center justify-center py-3 border rounded-lg transition-all shadow-sm hover:shadow-md group" data-method="pay_on_delivery" aria-label="Pay on Delivery">
+            <div class="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-500 dark:text-amber-400 mb-2 group-hover:bg-amber-200 dark:group-hover:bg-amber-900/50 transition-colors">
+                <i class="fas fa-truck text-lg"></i>
+            </div>
+            <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">Pay on Delivery</span>
+            <div class="mt-1 w-4 h-1 bg-transparent rounded-full group-hover:bg-amber-500 transition-colors"></div>
+        </button>
+
+        <!-- Mobile Payment -->
+       <button
+      class="payment-method flex flex-col items-center justify-center py-3 border rounded-lg transition-all shadow-sm hover:shadow-md group opacity-50 cursor-not-allowed"
+      data-method="mobile"
+      data-disabled="true"
+      aria-label="Pay with M-Pesa"
+    >
+      <div class="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-500 dark:text-green-400 mb-2 group-hover:bg-green-200 dark:group-hover:bg-green-900/50 transition-colors">
+        <i class="fas fa-mobile-screen-button text-lg"></i>
+      </div>
+      <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">Mobile</span>
+      <div class="mt-1 w-4 h-1 bg-transparent rounded-full group-hover:bg-green-500 transition-colors"></div>
+    </button>
+
+    </div>
+</div>
+
                             
                             <!-- Complete Sale Button - More Prominent -->
                             <button id="complete-sale" class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white py-4 rounded-full font-semibold flex items-center justify-center shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-base group" aria-label="Complete Sale">
@@ -355,6 +358,25 @@ document.addEventListener('click', (e) => {
                 </div>
             </div>
         </div>
+
+
+    <div id="recent-transactions-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white w-full max-w-lg rounded-lg p-4 overflow-y-auto max-h-[80vh]">
+        <div class="flex justify-between items-center border-b pb-2 mb-4">
+            <h2 class="text-lg font-semibold">Recent Transactions</h2>
+            <button onclick="document.getElementById('recent-transactions-modal').classList.add('hidden')" class="text-gray-500 hover:text-red-500">
+                &times;
+            </button>
+        </div>
+        <div id="recent-transactions-body" class="space-y-2">
+            <!-- Transactions will be injected here -->
+        </div>
+    </div>
+</div>
+
+
+
+
 
         <!-- Global Loading Overlay-->
         <div id="global-loading-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -1381,86 +1403,237 @@ function roundUpToNearestFive(amount) {
         }
 
         function setupPaymentMethods() {
-            elements.paymentMethods.addEventListener('click', (e) => {
-                const button = e.target.closest('.payment-method');
-                if (!button) return;
-                
-                // Update UI
-                document.querySelectorAll('.payment-method').forEach(btn => {
-                    btn.querySelector('div').classList.remove(
-                        'bg-amber-100', 'dark:bg-amber-900/30',
-                        'bg-blue-100', 'dark:bg-blue-900/30',
-                        'bg-green-100', 'dark:bg-green-900/30'
-                    );
-                    btn.querySelector('div').classList.remove(
-                        'text-amber-500', 'dark:text-amber-400',
-                        'text-blue-500', 'dark:text-blue-400',
-                        'text-green-500', 'dark:text-green-400'
-                    );
-                    btn.querySelector('div').classList.add(
-                        'bg-gray-100', 'dark:bg-gray-700',
-                        'text-gray-500', 'dark:text-gray-400'
-                    );
-                    btn.querySelector('div:last-child').classList.add('bg-transparent');
-                });
-                
-                // Highlight selected
-                const method = button.dataset.method;
-                const iconDiv = button.querySelector('div:first-child');
-                const indicator = button.querySelector('div:last-child');
-                
-                if (method === 'cash') {
-                    iconDiv.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400');
-                    iconDiv.classList.add('bg-amber-100', 'dark:bg-amber-900/30', 'text-amber-500', 'dark:text-amber-400');
-                    indicator.classList.remove('bg-transparent');
-                    indicator.classList.add('bg-amber-500');
-                } else if (method === 'card') {
-                    iconDiv.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400');
-                    iconDiv.classList.add('bg-blue-100', 'dark:bg-blue-900/30', 'text-blue-500', 'dark:text-blue-400');
-                    indicator.classList.remove('bg-transparent');
-                    indicator.classList.add('bg-blue-500');
-                } else if (method === 'mobile') {
-                    iconDiv.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400');
-                    iconDiv.classList.add('bg-green-100', 'dark:bg-green-900/30', 'text-green-500', 'dark:text-green-400');
-                    indicator.classList.remove('bg-transparent');
-                    indicator.classList.add('bg-green-500');
-                }
-                
-                state.selectedPaymentMethod = method;
-            });
+    elements.paymentMethods.addEventListener('click', (e) => {
+        const button = e.target.closest('.payment-method');
+        if (!button) return;
+        
+        // Reset UI for all
+        document.querySelectorAll('.payment-method').forEach(btn => {
+            const iconDiv = btn.querySelector('div:first-child');
+            const indicator = btn.querySelector('div:last-child');
+
+            iconDiv.classList.remove(
+                'bg-amber-100', 'dark:bg-amber-900/30',
+                'bg-green-100', 'dark:bg-green-900/30',
+                'text-amber-500', 'dark:text-amber-400',
+                'text-green-500', 'dark:text-green-400',
+                'bg-gray-100', 'dark:bg-gray-700',
+                'text-gray-500', 'dark:text-gray-400'
+            );
+            iconDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400');
+            indicator.classList.remove('bg-amber-500', 'bg-green-500');
+            indicator.classList.add('bg-transparent');
+        });
+
+        // Highlight selected
+        const method = button.dataset.method;
+        const iconDiv = button.querySelector('div:first-child');
+        const indicator = button.querySelector('div:last-child');
+
+        if (method === 'pay_on_delivery') {
+            iconDiv.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400');
+            iconDiv.classList.add('bg-amber-100', 'dark:bg-amber-900/30', 'text-amber-500', 'dark:text-amber-400');
+            indicator.classList.remove('bg-transparent');
+            indicator.classList.add('bg-amber-500');
+        } else if (method === 'mobile') {
+            iconDiv.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400');
+            iconDiv.classList.add('bg-green-100', 'dark:bg-green-900/30', 'text-green-500', 'dark:text-green-400');
+            indicator.classList.remove('bg-transparent');
+            indicator.classList.add('bg-green-500');
         }
 
-        function setupProductSearch() {
-            let debounceTimer;
-            elements.productSearch.addEventListener('input', () => {
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(async () => {
-                    const query = elements.productSearch.value.trim();
-                    if (!query) {
-                        renderProducts();
-                        return;
-                    }
-                    try {
-                        showLoading('Searching Products...');
-                        const response = await axios.post(`${API_BASE_URL}/products/search`, {
-                            query
-                        }, { timeout: 3000 });
-                        state.products = response.data || [];
-                        renderProducts();
-                        if (state.products.length === 0) {
-                            showNotification('No matching products found.', 'info');
-                        }
-                    } catch (err) {
-                        showNotification('Search failed.', 'warning');
-                        const q = query.toLowerCase();
-                        state.products = state.products.filter(p => p.name?.toLowerCase().includes(q) || p.barcode?.includes(q) || p.sku?.includes(q));
-                        renderProducts();
-                    } finally {
-                        hideLoading();
-                    }
-                }, 250);
-            });
+        state.selectedPaymentMethod = method;
+    });
+}
+
+
+
+
+
+// Load and display recent transactions
+async function loadRecentTransactionsModal() {
+    const container = document.getElementById('recent-transactions-body');
+    container.innerHTML = '<p class="text-gray-500">Loading recent transactions...</p>';
+
+    try {
+        const res = await axios.get(`${API_BASE_URL}/transactions/recent`);
+
+        // Check for valid status
+        if (res.status !== 200 || !Array.isArray(res.data)) {
+            throw new Error('Invalid response from server.');
         }
+
+        const transactions = res.data; // It's a direct list, not res.data.transactions
+
+        if (!transactions.length) {
+            container.innerHTML = '<p class="text-gray-400">No recent transactions found.</p>';
+            return;
+        }
+
+        container.innerHTML = ''; // Clear the loader
+
+        transactions.forEach(tx => {
+            const txId = `tx-${tx.id}`;
+            const txDate = new Date(tx.date).toLocaleString();
+
+            const html = `
+                <div class="border-b py-2">
+                    <button class="w-full text-left text-blue-600 font-semibold" onclick="toggleTransactionDetails('${txId}')">
+                        Order #${tx.id} – ${tx.total.toFixed(2)} KES – ${txDate}
+                    </button>
+                    <div id="${txId}" class="hidden mt-2 space-y-1">
+                        ${(tx.items || []).map(item => `
+                            <div class="flex justify-between text-sm text-gray-700">
+                                <span>${item.name} (${item.quantity})</span>
+                                <span>${(item.price * item.quantity).toFixed(2)} KES</span>
+                            </div>
+                        `).join('')}
+                        <button class="mt-3 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                                onclick='reorderTransaction(${JSON.stringify(tx.items || [])})'>
+                            Reorder
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            container.insertAdjacentHTML('beforeend', html);
+        });
+
+    } catch (err) {
+        console.error('Transaction load error:', err);
+        container.innerHTML = `<p class="text-red-500">Error loading transactions.</p>`;
+    }
+}
+
+function toggleTransactionDetails(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden');
+}
+
+function reorderTransaction(items) {
+    try {
+        let cart = JSON.parse(localStorage.getItem('pos_cart')) || [];
+
+        for (const item of items) {
+            const existing = cart.find(p => p.product_id === item.product_id);
+
+            if (existing) {
+                existing.quantity += item.quantity;
+            } else {
+                cart.push({ ...item });
+            }
+        }
+
+        localStorage.setItem('pos_cart', JSON.stringify(cart));
+        state.cart = cart;
+        updateCartUI();
+
+        alert('Items from the previous sale have been added to your cart.');
+        document.getElementById('recent-transactions-modal')?.classList.add('hidden');
+    } catch (e) {
+        console.error('Reorder error:', e);
+        alert('Failed to reorder this transaction.');
+    }
+}
+
+
+
+
+    // ====================
+    // Product Search
+    // ====================
+    function setupProductSearch() {
+        let debounceTimer;
+        const searchInput = elements.productSearch;
+
+        if (!searchInput) return;
+
+        searchInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+
+            debounceTimer = setTimeout(async () => {
+                const query = searchInput.value.trim();
+                const categoryId = elements.categoryFilter?.value || null;
+
+                if (!query) {
+                    return loadProducts(); // Load full list on empty query
+                }
+
+                try {
+                    // Show skeleton only if we're *about to search*
+                    showSearchSkeleton();
+
+                    const response = await axios.post(`${API_BASE_URL}/products/search`, {
+                        query,
+                        category_id: categoryId
+                    }, {
+                        timeout: 3000
+                    });
+
+                    const products = response.data || [];
+
+                    state.products = products;
+
+                    if (products.length > 0) {
+                        renderProducts(products);
+                    } else {
+                        showNotification('No matching products found.', 'info');
+                        clearProductGrid(); // Optional: show empty state
+                    }
+
+                } catch (err) {
+                    console.warn('Search failed, using fallback:', err);
+                    showNotification('Search failed. Using fallback.', 'warning');
+                    fallbackSearch(query, categoryId);
+                } finally {
+                    hideSearchSkeleton();
+                }
+
+            }, 250); // debounce
+        });
+    }
+
+
+    function clearProductGrid() {
+        elements.productGrid.innerHTML = `
+        <div class="text-center text-gray-500 py-8 col-span-full">
+            <i class="fas fa-box-open text-3xl mb-2"></i>
+            <p>No products found.</p>
+        </div>
+    `;
+    }
+
+
+
+    function showSearchSkeleton(count = 8) {
+        const html = Array(count).fill(`
+        <div class="animate-pulse p-4 bg-white rounded shadow-sm">
+            <div class="h-24 bg-gray-200 rounded mb-2"></div>
+            <div class="h-4 bg-gray-300 w-3/4 mb-1"></div>
+            <div class="h-4 bg-gray-300 w-1/2"></div>
+        </div>
+    `).join('');
+        elements.productGrid.innerHTML = html;
+    }
+
+    function hideSearchSkeleton() {
+        // nothing to do; renderProducts will overwrite
+    }
+
+    function fallbackSearch(query, categoryId) {
+        const q = query.toLowerCase();
+        const results = state.products.filter(p => {
+            const matchName = p.name?.toLowerCase().includes(q);
+            const matchBarcode = p.barcode?.includes(query);
+            const matchSKU = p.sku?.includes(query);
+            const matchCategory = !categoryId || p.category_id == categoryId;
+
+            return (matchName || matchBarcode || matchSKU) && matchCategory;
+        });
+
+        renderProducts(results);
+    }
+
 
         function setupCartToggles() {
             const headerToggle = document.getElementById('cart-collapse-toggle');
@@ -1491,6 +1664,24 @@ function roundUpToNearestFive(amount) {
                     </button>
                 </div>`;
         }
+
+
+            document.querySelectorAll('.payment-method').forEach(btn => {
+              btn.addEventListener('click', (e) => {
+                const isDisabled = btn.dataset.disabled === 'true';
+                if (isDisabled) {
+                  e.preventDefault();
+                  // Replace below with your toast/alert logic
+                  alert('Mobile payment is coming soon!');
+                } else {
+                  // Proceed with selecting payment method
+                  const method = btn.dataset.method;
+                  // Your logic to activate payment...
+                }
+              });
+            });
+
+
 
         // Event Listeners
         function setupEventListeners() {
