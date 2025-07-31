@@ -48,3 +48,5 @@ NameError: name 'usernames' is not defined
 2025-07-23 20:26:19,487 - WARNING - 404 Error at http://127.0.0.1:5000/favicon.ico
 2025-07-23 20:26:36,815 - WARNING - 404 Error at http://127.0.0.1:5000/favicon.ico
 2025-07-23 20:26:46,355 - WARNING - 404 Error at http://127.0.0.1:5000/favicon.ico
+2025-07-31 11:21:45,886 - WARNING - 404 at http://127.0.0.1:5000/static/css/output.mini.css
+2025-07-31 11:21:53,426 - WARNING - 404 at http://127.0.0.1:5000/favicon.ico
