@@ -69,6 +69,12 @@ api_bp.add_url_rule(
 )
 
 
+api_bp.add_url_rule(
+    '/shops/<int:shop_id>/transactions/<int:transaction_id>',
+    view_func=controllers.TransactionController.as_view('transaction_details_api'), 
+    methods=['GET']
+)
+
 
 # Transaction API
 api_bp.add_url_rule(

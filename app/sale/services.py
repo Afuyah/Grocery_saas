@@ -215,18 +215,93 @@ class SalesService:
             })
             raise ValueError(f"Checkout processing failed: {str(e)}")
 
-    @staticmethod
-    def get_recent_transactions(shop_id: int):
-        return Sale.query.filter_by(shop_id=shop_id).order_by(Sale.date.desc()).limit(10).all()
+
+
+            
 
     @staticmethod
-    def get_transactions(shop_id: int, page=1, per_page=20, date_from=None, date_to=None):
-        query = Sale.query.filter(Sale.shop_id == shop_id)
-        if date_from:
-            query = query.filter(Sale.date >= date_from)
-        if date_to:
-            query = query.filter(Sale.date <= date_to)
-        return query.order_by(Sale.date.desc()).paginate(page=page, per_page=per_page)
+    def get_recent_transactions(shop_id: int, limit: int = 3) -> List[Sale]:
+        """Get recent sales with optimized query"""
+        return db.session.query(Sale)\
+            .filter(Sale.shop_id == shop_id)\
+            .order_by(Sale.date.desc())\
+            .limit(limit)\
+            .options(
+                db.load_only(
+                    Sale.id,
+                    Sale.date,
+                    Sale.total,
+                    Sale.payment_method,
+                    Sale.customer_name,
+                    Sale.status
+                )
+            )\
+            .all()
+
+    @staticmethod
+    def get_sale_details(sale_id: int, shop_id: int) -> Optional[Sale]:
+        """Get complete sale data with items"""
+        return db.session.query(Sale)\
+            .filter(and_(
+                Sale.id == sale_id,
+                Sale.shop_id == shop_id
+            ))\
+            .options(
+                db.joinedload(Sale.cart_items)
+                .joinedload(CartItem.product)
+                .load_only(
+                    Product.id,
+                    Product.name,
+                    Product.image_url,
+                    Product.price
+                )
+            )\
+            .first()
+
+    @staticmethod
+    def get_daily_sales_summary(shop_id: int, days: int = 7) -> dict:
+        """Get sales summary for dashboard"""
+        date_threshold = datetime.utcnow() - timedelta(days=days)
+        
+        result = db.session.query(
+            func.count(Sale.id).label('count'),
+            func.sum(Sale.total).label('total'),
+            func.date(Sale.date).label('day')
+        )\
+        .filter(and_(
+            Sale.shop_id == shop_id,
+            Sale.date >= date_threshold
+        ))\
+        .group_by(func.date(Sale.date))\
+        .order_by(func.date(Sale.date).desc())\
+        .all()
+        
+        return [{
+            'date': r.day.strftime('%Y-%m-%d'),
+            'count': r.count,
+            'total': float(r.total) if r.total else 0
+        } for r in result]
+
+    @staticmethod
+    def reorder_sale(sale_id: int, shop_id: int) -> dict:
+        """Prepare sale data for reordering"""
+        sale = SalesService.get_sale_details(sale_id, shop_id)
+        if not sale:
+            return None
+            
+        return {
+            'items': [{
+                'product_id': item.product.id,
+                'quantity': float(item.quantity),
+                'original_price': float(item.unit_price),
+                'current_price': float(item.product.price)
+            } for item in sale.cart_items],
+            'original_total': float(sale.total),
+            'estimated_total': sum(
+                float(item.quantity) * float(item.product.price)
+                for item in sale.cart_items
+            )
+        }
 
     
 

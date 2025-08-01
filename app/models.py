@@ -883,10 +883,11 @@ class CartItem(BaseModel, ShopScopedMixin):
     __tablename__ = 'cart_items'
 
     product_id = db.Column(Integer, db.ForeignKey('products.id'), nullable=False, index=True)
-    quantity = db.Column(Integer, nullable=False)
+    quantity = db.Column(Numeric(12, 3), nullable=False)  # Changed to Numeric for fractional quantities
     sale_id = db.Column(Integer, db.ForeignKey('sales.id'), nullable=False, index=True)
-    total_price = db.Column(db.Float, nullable=True)
-    unit_price = db.Column(db.Float, nullable=True)
+    unit_price = db.Column(Numeric(12, 2), nullable=False)  # Price at time of sale
+    discount = db.Column(Numeric(5, 2), default=0.0)  # Discount percentage applied
+    total_price = db.Column(Numeric(12, 2), nullable=False)  # Calculated field
 
     # Relationships
     product = relationship('Product', back_populates='sale_items', lazy='select')
@@ -897,23 +898,64 @@ class CartItem(BaseModel, ShopScopedMixin):
         db.Index('ix_cartitem_sale_product', 'sale_id', 'product_id'),
         db.Index('ix_cartitem_shop_product', 'shop_id', 'product_id'),
         db.Index('ix_cartitem_shop_sale', 'shop_id', 'sale_id'),
+        db.CheckConstraint('quantity > 0', name='check_positive_quantity'),
+        db.CheckConstraint('unit_price >= 0', name='check_non_negative_price'),
     )
 
-    @validates('quantity')
-    def validate_quantity(self, key, value):
-        if value <= 0:
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.calculate_total()
+
+    @validates('quantity', 'unit_price', 'discount')
+    def validate_values(self, key, value):
+        if key == 'quantity' and value <= 0:
             raise ValueError("Quantity must be greater than zero.")
+        if key in ('unit_price', 'total_price') and value < 0:
+            raise ValueError("Price cannot be negative")
+        if key == 'discount' and not (0 <= value <= 100):
+            raise ValueError("Discount must be between 0 and 100")
         return value
 
-    def __repr__(self):
-        return f'<CartItem product_id={self.product_id}, quantity={self.quantity}>'
+    def calculate_total(self):
+        """Calculate total price including discounts"""
+        if self.unit_price is not None and self.quantity is not None:
+            subtotal = self.unit_price * self.quantity
+            self.total_price = subtotal * (1 - (self.discount / 100))
+            return self.total_price
+        return Decimal('0.00')
 
-    def serialize(self):
-        return {
-            'product_name': self.product.name if self.product else 'Unknown Product',
-            'quantity': self.quantity,
-            'total_price': str(self.total_price),
+    def update_from_product(self, product):
+        """Update prices from current product information"""
+        if product:
+            self.unit_price = product.selling_price
+            self.calculate_total()
+        return self
+
+    def serialize(self, include_product=False):
+        """Enhanced serialization with more details"""
+        data = {
+            'id': self.id,
+            'product_id': self.product_id,
+            'quantity': float(self.quantity),
+            'unit_price': float(self.unit_price),
+            'discount': float(self.discount),
+            'total_price': float(self.total_price),
+            'created_at': self.created_at.isoformat() if self.created_at else None
         }
+        
+        if include_product and self.product:
+            data['product'] = {
+                'name': self.product.name,
+                'image_url': self.product.image_url,
+                'barcode': self.product.barcode,
+                'current_price': float(self.product.selling_price)
+            }
+        
+        return data
+
+    def __repr__(self):
+        return (f'<CartItem id={self.id} product={self.product_id} '
+                f'qty={self.quantity} price={self.unit_price}>')
 
 
 
