@@ -189,7 +189,7 @@ document.addEventListener('click', (e) => {
     <!-- Search & Filter Header -->
     <div class="p-4 border-b border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-800/95 sticky top-0 z-10">
         <div class="flex flex-col space-y-3">
-            <!-- Enhanced Search -->
+            <!--  Search -->
             <div class="relative">
                 <input type="text" id="product-search" placeholder="Search products..." 
                        class="w-full pl-12 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-full focus:outline-none focus:ring-2 focus:ring-amber-400 dark:focus:ring-amber-500 transition-all bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 text-sm shadow-sm"
@@ -360,18 +360,38 @@ document.addEventListener('click', (e) => {
         </div>
 
 
-    <div id="recent-transactions-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white w-full max-w-lg rounded-lg p-4 overflow-y-auto max-h-[80vh]">
-        <div class="flex justify-between items-center border-b pb-2 mb-4">
-            <h2 class="text-lg font-semibold">Recent Transactions</h2>
-            <button onclick="document.getElementById('recent-transactions-modal').classList.add('hidden')" class="text-gray-500 hover:text-red-500">
-                &times;
-            </button>
-        </div>
-        <div id="recent-transactions-body" class="space-y-2">
-            <!-- Transactions will be injected here -->
-        </div>
+   <div id="recent-transactions-modal" 
+     class="fixed inset-0 z-50 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 sm:px-6 hidden">
+  
+  <div class="bg-white dark:bg-gray-800 w-full max-w-2xl rounded-xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh] transition-all">
+    
+    <!-- Header -->
+    <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+      <div>
+        <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Recent Transactions</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Detailed view of all transactions</p>
+      </div>
+      <button onclick="document.getElementById('recent-transactions-modal').classList.add('hidden')" 
+              class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
+
+    <!-- Body -->
+    <div id="recent-transactions-body" 
+         class="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-white dark:bg-gray-800 thin-scrollbar">
+      <!-- Transactions will be injected here -->
+    </div>
+
+    <!-- Optional Footer (e.g., for actions) -->
+    <!--
+    <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+      <button class="btn">Close</button>
+    </div>
+    -->
+  </div>
 </div>
 
 
@@ -1448,7 +1468,10 @@ function roundUpToNearestFive(amount) {
 
 
 
-// Enhanced Recent Transactions Modal with Tailwind styling
+
+
+
+//  Recent Transactions Modal 
 async function loadRecentTransactionsModal() {
     const container = document.getElementById('recent-transactions-body');
     
@@ -1553,6 +1576,17 @@ async function loadRecentTransactionsModal() {
     }
 }
 
+function hideModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.add('hidden');
+    } else {
+        console.warn(`Modal with ID "${modalId}" not found.`);
+    }
+}
+
+
+
 // Load detailed transaction information when clicked
 async function loadTransactionDetails(txId, cardElement) {
     const detailsEl = cardElement.querySelector('.transaction-details');
@@ -1590,57 +1624,7 @@ async function loadTransactionDetails(txId, cardElement) {
         
         detailsEl.innerHTML = `
             <div class="border-t border-gray-200 dark:border-gray-700 pt-5 mt-2">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-                        <h4 class="font-medium text-gray-800 dark:text-gray-200 mb-3 flex items-center">
-                            <i class="fas fa-info-circle text-amber-500 mr-2"></i>
-                            Order Summary
-                        </h4>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-gray-500 dark:text-gray-400">Payment Method</span>
-                                <span class="font-medium text-gray-800 dark:text-gray-200">${tx.payment_method || 'N/A'}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-500 dark:text-gray-400">Items</span>
-                                <span class="font-medium text-gray-800 dark:text-gray-200">${tx.items.reduce((sum, item) => sum + item.quantity, 0)}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-500 dark:text-gray-400">Customer</span>
-                                <span class="font-medium text-gray-800 dark:text-gray-200">${tx.customer_name || 'Walk-in'}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-500 dark:text-gray-400">Date & Time</span>
-                                <span class="font-medium text-gray-800 dark:text-gray-200">${new Date(tx.date).toLocaleString()}</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-                        <h4 class="font-medium text-gray-800 dark:text-gray-200 mb-3 flex items-center">
-                            <i class="fas fa-receipt text-amber-500 mr-2"></i>
-                            Payment Summary
-                        </h4>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-gray-500 dark:text-gray-400">Subtotal</span>
-                                <span class="font-medium text-gray-800 dark:text-gray-200">${formatCurrency(tx.subtotal || tx.items.reduce((sum, item) => sum + (item.price * item.quantity), 0))}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-500 dark:text-gray-400">Tax</span>
-                                <span class="font-medium text-gray-800 dark:text-gray-200">${formatCurrency(tx.tax || 0)}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-500 dark:text-gray-400">Discounts</span>
-                                <span class="font-medium text-green-600 dark:text-green-400">-${formatCurrency(tx.items.reduce((sum, item) => sum + ((item.price * item.quantity) * (item.discount || 0) / 100), 0))}</span>
-                            </div>
-                            <div class="flex justify-between border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
-                                <span class="text-gray-800 dark:text-gray-200 font-semibold">Total</span>
-                                <span class="text-lg font-bold text-amber-600 dark:text-amber-400">${formatCurrency(tx.total)}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+               
                 
                 <h4 class="font-medium text-gray-800 dark:text-gray-200 mb-3 flex items-center">
                     <i class="fas fa-boxes text-amber-500 mr-2"></i>
@@ -1664,7 +1648,7 @@ async function loadTransactionDetails(txId, cardElement) {
                                 <div class="flex-1 min-w-0">
                                     <h5 class="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">${item.name}</h5>
                                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                        ${item.quantity} × ${formatCurrency(item.price)}
+                                        ${item.quantity} 
                                         ${item.discount > 0 ? `
                                             <span class="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200">
                                                 ${item.discount}% off
@@ -1672,17 +1656,12 @@ async function loadTransactionDetails(txId, cardElement) {
                                         ` : ''}
                                     </p>
                                     
-                                    ${item.price_diff !== 0 ? `
-                                        <p class="text-xs mt-1 ${item.price_diff > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">
-                                            <i class="fas ${item.price_diff > 0 ? 'fa-arrow-up' : 'fa-arrow-down'} mr-1"></i>
-                                            ${formatCurrency(Math.abs(item.price_diff))} ${item.price_diff > 0 ? 'increase' : 'decrease'} since purchase
-                                        </p>
-                                    ` : ''}
+                                   
                                 </div>
                                 
                                 <div class="ml-4 text-right">
                                     <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                                        ${formatCurrency(item.price * item.quantity)}
+                                        ${formatCurrency(item.unit_price * item.quantity)}
                                     </p>
                                     ${item.discount > 0 ? `
                                         <p class="text-xs text-green-600 dark:text-green-400 mt-1">
@@ -1716,7 +1695,7 @@ async function loadTransactionDetails(txId, cardElement) {
     }
 }
 
-// Enhanced reorder functionality with current prices
+//  reorder functionality with current prices
 async function reorderTransaction(txId) {
     try {
         showLoading('Preparing reorder...', 'Getting your order ready');
@@ -1724,15 +1703,13 @@ async function reorderTransaction(txId) {
         const res = await axios.get(`${API_BASE_URL}/transactions/${txId}`);
         const tx = res.data;
         
-        // Clear current cart
-        state.cart = [];
+        state.cart = []; // Clear current cart
         
-        // Add items with current prices
         let addedCount = 0;
         for (const item of tx.items) {
             const product = state.products.find(p => p.id === item.product_id);
             if (product) {
-                const success = addToCart(product.id, item.quantity);
+                const success = reorderItem(product.id, item.quantity);
                 if (success) {
                     addedCount++;
                 } else {
@@ -1740,14 +1717,16 @@ async function reorderTransaction(txId) {
                 }
             }
         }
-        
+
         hideLoading();
-        hideModal('recent-transactions-modal');
+
+        const modal = document.getElementById('recent-transactions-modal');
+        if (modal) modal.classList.add('hidden');
         
         if (addedCount > 0) {
             showNotification(`Added ${addedCount} items to cart from order #${txId}`, 'success');
             if (state.isMobileView) {
-                document.getElementById('cart-section').scrollIntoView({ 
+                document.getElementById('cart-section')?.scrollIntoView({ 
                     behavior: 'smooth',
                     block: 'start'
                 });
@@ -1755,12 +1734,14 @@ async function reorderTransaction(txId) {
         } else {
             showNotification('No items could be added to cart', 'warning');
         }
+
     } catch (error) {
         hideLoading();
         showNotification('Failed to reorder. Please try again.', 'error');
         console.error('Reorder error:', error);
     }
 }
+
 
 // Helper function for status colors
 function getStatusColorClass(status) {
@@ -1773,6 +1754,67 @@ function getStatusColorClass(status) {
     };
     return statusMap[status.toLowerCase()] || 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
 }
+
+
+
+
+function reorderItem(productId, quantity) {
+    const product = state.products.find(p => p.id === productId);
+    if (!product) {
+        console.error(`Product ${productId} not found`);
+        return false;
+    }
+
+    const currentQtyInCart = getCurrentCartQuantity(productId);
+    const availableStock = product.stock - currentQtyInCart;
+
+    if (availableStock < quantity) {
+        showNotification(`Only ${availableStock} available for "${product.name}"`, 'error');
+        return false;
+    }
+
+    let existingItem = state.cart.find(item => item.product_id === productId);
+
+    if (existingItem) {
+        const newQty = existingItem.quantity + quantity;
+
+        if (newQty > product.stock) {
+            showNotification(`Only ${product.stock} available for "${product.name}"`, 'error');
+            return false;
+        }
+
+        existingItem.quantity = newQty;
+    } else {
+        state.cart.push({
+            product_id: product.id,
+            name: product.name,
+            price: product.price,
+            discount: product.discount || 0,
+            image_url: product.image_url,
+            quantity: quantity,
+            is_combo: !!product.is_combo,
+            combination_size: product.combination_size || 0,
+            combination_price: product.combination_price || 0,
+            stock: product.stock,
+            unit: product.unit || '',
+            minimum_unit: product.minimum_unit || 1
+        });
+    }
+
+    const productCard = document.querySelector(`.pos-card[data-id="${productId}"]`);
+    if (productCard) {
+        productCard.classList.add('animate-cart-add');
+        setTimeout(() => productCard.classList.remove('animate-cart-add'), 500);
+    }
+
+    if (!state.isMobileView && state.cart.length === 1) {
+        state.cartVisible = true;
+    }
+
+    updateCartUI();
+    return true;
+}
+
 
 
 
