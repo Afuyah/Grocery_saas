@@ -1,5 +1,5 @@
 import logging
-from flask import Flask, render_template, request, g, abort, session, current_app, redirect, url_for
+from flask import Flask, render_template, request, g, abort, session, current_app, redirect, url_for, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import SQLAlchemyError
 from flask_migrate import Migrate
@@ -342,7 +342,27 @@ def create_app(config_class=Config):
         app.logger.error(f"500 Error: {error}")
         return render_template('500.html'), 500
 
-    # -----------------------
+
+
+
+    # Jinja filter to get product image URL
+    def product_image_url(image_path):
+        if image_path:
+            filename = image_path.split('/')[-1]
+            return url_for('serve_product_image', filename=filename)
+        else:
+            return url_for('static', filename='products/placeholder.jpg')
+
+    # Register the filter globally
+    app.jinja_env.filters['product_image_url'] = product_image_url
+
+    # Route to serve uploaded product images
+    @app.route('/products/image/<filename>')
+    def serve_product_image(filename):
+        return send_from_directory('static/products', filename)
+            
+
+        # -----------------------
     # Initial Data Population
     # -----------------------
     with app.app_context():

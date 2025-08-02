@@ -10,8 +10,8 @@ from datetime import datetime, date
 import logging
 from werkzeug.exceptions import BadRequest
 from app.utils.render import render_htmx
-
-
+from werkzeug.utils import secure_filename
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -607,6 +607,52 @@ def edit_product(shop_id: int, id: int):
             return redirect(url_for('inventory.edit_product', shop_id=shop.id, id=id))
 
     return render_template('edit_product.html', product=product, categories=categories, shop=shop)
+
+
+
+
+@csrf.exempt
+@inventory_bp.route('/shops/<int:shop_id>/products/<int:product_id>/upload-image', methods=['POST'])
+@login_required
+@shop_access_required
+@role_required(Role.ADMIN, Role.TENANT)
+def upload_product_image(shop_id, product_id):
+    shop = g.current_shop
+    product = Product.query.filter_by(id=product_id, shop_id=shop.id).first_or_404()
+
+    image_file = request.files.get('image')
+    is_primary = request.form.get('is_primary') == 'true'
+
+    if not image_file:
+        return jsonify({'error': 'No image uploaded'}), 400
+
+    filename = secure_filename(image_file.filename)
+    image_path = os.path.join('static', 'products', filename)
+    full_path = os.path.join(current_app.root_path, image_path)
+
+    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    image_file.save(full_path)
+
+    if is_primary:
+        product.image_url = '/' + image_path.replace('\\', '/')
+    else:
+        # Assuming you plan to handle multiple images later, store references
+        # You could optionally store them in a separate table
+        pass
+
+    db.session.commit()
+
+    return jsonify({'success': True, 'image_url': product.image_url})
+
+
+@inventory_bp.route('/shops/<int:shop_id>/products/<int:product_id>/upload-image-fragment', methods=['GET'])
+@login_required
+@shop_access_required
+@role_required(Role.ADMIN, Role.TENANT)
+def upload_image_fragment(shop_id, product_id):
+    return render_htmx('admin/fragments/_image_upload_modal.html', shop_id=shop_id, product_id=product_id)
+
+
 
 
 @csrf.exempt
