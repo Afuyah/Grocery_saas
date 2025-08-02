@@ -398,22 +398,56 @@ document.addEventListener('click', (e) => {
 
 
 
-        <!-- Global Loading Overlay-->
-        <div id="global-loading-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-            <div class="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-2xl text-center max-w-xs transform transition-all duration-300 scale-95 opacity-0" id="loading-modal-inner">
-                <div class="loader relative w-16 h-16 mx-auto mb-4">
-                    <div class="absolute inset-0 border-4 border-transparent border-t-amber-500 dark:border-t-amber-400 rounded-full animate-spin"></div>
-                    <div class="absolute inset-1 border-4 border-transparent border-b-amber-500 dark:border-b-amber-400 rounded-full animate-spin-reverse"></div>
-                    <div class="absolute inset-2 border-4 border-transparent border-r-amber-500 dark:border-r-amber-400 rounded-full animate-pulse-slow"></div>
-                </div>
-                <h3 class="text-base font-semibold text-gray-800 dark:text-gray-100" id="loading-message">Processing</h3>
-                <p class="text-gray-500 dark:text-gray-400 text-sm mt-1" id="loading-submessage">Please wait while we process your request</p>
-                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-4 overflow-hidden">
-                    <div class="bg-amber-500 dark:bg-amber-400 h-1.5 rounded-full animate-progress"></div>
-                </div>
-            </div>
+        <!-- Global Loading Overlay -->
+<div id="global-loading-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div id="loading-modal-inner" class="bg-white dark:bg-gray-900 p-6 md:p-8 rounded-2xl shadow-xl text-center w-[90%] max-w-sm scale-95 opacity-0 transition-all duration-300">
+        <div class="relative w-14 h-14 mx-auto mb-4">
+            <div class="absolute inset-0 border-4 border-transparent border-t-amber-500 dark:border-t-amber-400 rounded-full animate-spin"></div>
+            <div class="absolute inset-1 border-4 border-transparent border-b-amber-500 dark:border-b-amber-400 rounded-full animate-spin-reverse"></div>
+            <div class="absolute inset-2 border-4 border-transparent border-r-amber-400 dark:border-r-amber-300 rounded-full animate-pulse-slow"></div>
         </div>
 
+        <h3 id="loading-message" class="text-lg font-semibold text-gray-800 dark:text-gray-100">
+            Just a moment...
+        </h3>
+        <p id="loading-submessage" class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            We’re getting things ready for you
+        </p>
+
+        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-4 overflow-hidden">
+            <div class="bg-amber-500 dark:bg-amber-400 h-1.5 rounded-full animate-progress"></div>
+        </div>
+    </div>
+</div>
+<style>
+    @keyframes spin-reverse {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-360deg); }
+}
+
+@keyframes pulse-slow {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+
+@keyframes progress {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-spin-reverse {
+  animation: spin-reverse 1.2s linear infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2.5s ease-in-out infinite;
+}
+
+.animate-progress {
+  animation: progress 2s linear infinite;
+}
+
+</style>
         <!-- Notification Container - Improved Design -->
         <div id="notification-container" class="fixed top-6 right-6 space-y-3 z-50 w-80"></div>
     </div>
